@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Taller 3D — {% block titulo %}Gestión{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen">
+  <nav class="bg-slate-900 text-white">
+    <div class="max-w-6xl mx-auto px-4 flex flex-wrap items-center gap-1 py-3">
+      <span class="font-bold text-lg mr-4">🖨️ Taller 3D</span>
+      {% set item = "px-3 py-2 rounded-lg hover:bg-slate-700 text-sm" %}
+      <a href="{{ url_for('dashboard') }}" class="{{ item }}">Panel</a>
+      <a href="{{ url_for('proyectos') }}" class="{{ item }}">Proyectos</a>
+      <a href="{{ url_for('filamentos') }}" class="{{ item }}">Filamentos</a>
+      <a href="{{ url_for('ventas') }}" class="{{ item }}">Ventas</a>
+      <a href="{{ url_for('gastos') }}" class="{{ item }}">Gastos</a>
+      <a href="{{ url_for('balance') }}" class="{{ item }} bg-indigo-600 hover:bg-indigo-500">💰 Balance</a>
+    </div>
+  </nav>
+
+  <main class="max-w-6xl mx-auto px-4 py-6">
+    {% with mensajes = get_flashed_messages(with_categories=true) %}
+      {% for cat, msg in mensajes %}
+        <div class="mb-4 px-4 py-2 rounded-lg text-sm
+             {{ 'bg-red-100 text-red-700' if cat == 'error' else 'bg-green-100 text-green-700' }}">
+          {{ msg }}
+        </div>
+      {% endfor %}
+    {% endwith %}
+
+    {% block contenido %}{% endblock %}
+  </main>
+</body>
+</html>

@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block titulo %}Proyectos{% endblock %}
+{% block contenido %}
+<h1 class="text-2xl font-bold mb-6">Proyectos / Impresiones</h1>
+
+<div class="bg-white rounded-xl shadow p-5 mb-6">
+  <h2 class="font-semibold mb-4">Nuevo proyecto</h2>
+  <form method="post" action="{{ url_for('nuevo_proyecto') }}"
+        class="grid grid-cols-1 md:grid-cols-3 gap-3">
+    <input name="nombre" placeholder="Nombre de la pieza *" required
+           class="border rounded-lg px-3 py-2">
+    <input name="cliente" placeholder="Cliente" class="border rounded-lg px-3 py-2">
+    <select name="estado" class="border rounded-lg px-3 py-2">
+      {% for e in estados %}<option>{{ e }}</option>{% endfor %}
+    </select>
+    <input name="peso_g" type="number" step="0.1" placeholder="Peso (g)"
+           class="border rounded-lg px-3 py-2">
+    <input name="tiempo_estimado_h" type="number" step="0.1" placeholder="Tiempo (horas)"
+           class="border rounded-lg px-3 py-2">
+    <select name="filamento_id" class="border rounded-lg px-3 py-2">
+      <option value="">— Filamento —</option>
+      {% for f in filamentos %}<option value="{{ f.id }}">{{ f.etiqueta }}</option>{% endfor %}
+    </select>
+    <select name="usuario_id" class="border rounded-lg px-3 py-2">
+      <option value="">— Asignado a —</option>
+      {% for u in usuarios %}<option value="{{ u.id }}">{{ u.nombre }}</option>{% endfor %}
+    </select>
+    <button class="md:col-span-3 bg-indigo-600 text-white rounded-lg py-2 hover:bg-indigo-500">
+      Guardar proyecto
+    </button>
+  </form>
+  {% if not filamentos %}
+    <p class="text-xs text-amber-600 mt-2">Tip: agrega filamentos primero para calcular el costo automático.</p>
+  {% endif %}
+</div>
+
+<div class="bg-white rounded-xl shadow overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead class="bg-slate-50 text-slate-500 text-left">
+      <tr>
+        <th class="p-3">Pieza</th><th class="p-3">Cliente</th><th class="p-3">Peso</th>
+        <th class="p-3">Tiempo</th><th class="p-3">Filamento</th>
+        <th class="p-3">Costo</th><th class="p-3">Asignado</th>
+        <th class="p-3">Estado</th><th class="p-3"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in proyectos %}
+      <tr class="border-t">
+        <td class="p-3 font-medium">{{ p.nombre }}</td>
+        <td class="p-3">{{ p.cliente or '—' }}</td>
+        <td class="p-3">{{ p.peso_g }} g</td>
+        <td class="p-3">{{ p.tiempo_estimado_h }} h</td>
+        <td class="p-3">{{ p.filamento.etiqueta if p.filamento else '—' }}</td>
+        <td class="p-3">{{ p.costo_filamento | money }}</td>
+        <td class="p-3">{{ p.usuario.nombre if p.usuario else '—' }}</td>
+        <td class="p-3">
+          <form method="post" action="{{ url_for('cambiar_estado', pid=p.id) }}">
+            <select name="estado" onchange="this.form.submit()"
+                    class="border rounded px-2 py-1 text-xs">
+              {% for e in estados %}
+                <option {{ 'selected' if e == p.estado }}>{{ e }}</option>
+              {% endfor %}
+            </select>
+          </form>
+        </td>
+        <td class="p-3">
+          <div class="flex items-center gap-3">
+            <a href="{{ url_for('editar_proyecto', pid=p.id) }}"
+               class="text-indigo-600 hover:underline">Editar</a>
+            <form method="post" action="{{ url_for('eliminar_proyecto', pid=p.id) }}"
+                  onsubmit="return confirm('¿Eliminar proyecto?')">
+              <button class="text-red-500 hover:underline">Eliminar</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="9" class="p-4 text-center text-slate-400">Sin proyectos aún.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

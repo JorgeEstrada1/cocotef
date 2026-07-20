@@ -1,0 +1,20 @@
+{# Selector de mes reutilizable. Requiere la variable 'per' y 'endpoint'. #}
+<div class="bg-white rounded-xl shadow p-3 mb-6 flex flex-wrap items-center gap-2">
+  <a href="{{ url_for(endpoint, periodo=per.periodo_prev) }}"
+     class="px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-sm">← Mes anterior</a>
+
+  <form method="get" action="{{ url_for(endpoint) }}" class="flex items-center gap-2">
+    <input type="month" name="periodo" value="{{ per.periodo }}"
+           onchange="this.form.submit()" class="border rounded-lg px-3 py-2 text-sm">
+  </form>
+
+  <a href="{{ url_for(endpoint, periodo=per.periodo_next) }}"
+     class="px-3 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-sm">Mes siguiente →</a>
+
+  <a href="{{ url_for(endpoint) }}"
+     class="px-3 py-2 rounded-lg bg-indigo-100 text-indigo-700 hover:bg-indigo-200 text-sm">Este mes</a>
+
+  <span class="ml-auto text-slate-500 text-sm">
+    Mostrando: <b class="text-slate-800">{{ per.periodo_label }}</b>
+  </span>
+</div>

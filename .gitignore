@@ -1,0 +1,31 @@
+# --- Base de datos (no versionar datos locales) ---
+instance/
+*.db
+*.sqlite
+*.sqlite3
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+
+# --- Entorno virtual ---
+venv/
+.venv/
+env/
+ENV/
+
+# --- Configuración / secretos ---
+.env
+*.log
+
+# --- Claude Code (config local personal) ---
+.claude/
+
+# --- Editores / SO ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
