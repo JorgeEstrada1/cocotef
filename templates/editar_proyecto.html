@@ -16,8 +16,30 @@
     </div>
   </div>
 
-  <form method="post" action="{{ url_for('editar_proyecto', pid=p.id) }}"
+  <form method="post" action="{{ url_for('editar_proyecto', pid=p.id) }}" id="form-proyecto"
+        enctype="multipart/form-data"
         class="bg-card border border-edge rounded-xl shadow-lg p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+
+    <!-- Carga inteligente / reemplazo de G-code -->
+    <div class="md:col-span-2 relative rounded-xl border border-dashed border-cyan-500/40 bg-base/60 p-3">
+      {% if p.gcode_filename %}
+      <p class="text-xs text-cyan-300/80 mb-2">📄 Archivo actual guardado. Sube uno nuevo solo si deseas reemplazarlo.</p>
+      {% endif %}
+      <div class="flex flex-wrap items-center gap-3">
+        <span class="text-xl">🧠</span>
+        <div class="flex-1 min-w-[220px]">
+          <p class="text-sm font-medium text-slate-200">Carga inteligente de G-code</p>
+          <p class="text-xs text-slate-500">Sube tu <b class="text-cyan-300">.gcode</b> o <b class="text-cyan-300">.3mf</b> y autocompletamos peso y tiempo.</p>
+        </div>
+        <input type="file" id="gcode_file" name="gcode_file" accept=".gcode,.gco,.3mf"
+               class="text-sm text-slate-400 bg-card border border-edge rounded-lg cursor-pointer
+                      file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:cursor-pointer
+                      file:bg-gradient-to-r file:from-cyan-500 file:to-indigo-500 file:text-slate-900
+                      file:font-semibold hover:file:opacity-90">
+      </div>
+      <p id="gcode_status" class="text-xs mt-2 hidden"></p>
+    </div>
+
     <label class="block">
       <span class="text-sm text-slate-400">Nombre de la pieza</span>
       <input name="nombre" value="{{ p.nombre }}" required class="{{ inp }}">
@@ -73,4 +95,46 @@
     </div>
   </form>
 </div>
+
+<script>
+(function () {
+  const input  = document.getElementById("gcode_file");
+  const status = document.getElementById("gcode_status");
+  const form   = document.getElementById("form-proyecto");
+  if (!input) return;
+
+  const pesoField   = form.querySelector('input[name="peso_g"]');
+  const tiempoField = form.querySelector('input[name="tiempo_estimado_h"]');
+
+  function showStatus(msg, tipo) {
+    status.className = "text-xs mt-2 " + (
+      tipo === "ok" ? "text-teal-300" : tipo === "err" ? "text-rose-300" : "text-cyan-300");
+    status.textContent = msg;
+    status.classList.remove("hidden");
+  }
+  function flash(field) {
+    field.classList.add("ring-2", "ring-cyan-400");
+    setTimeout(() => field.classList.remove("ring-2", "ring-cyan-400"), 1200);
+  }
+
+  input.addEventListener("change", async function () {
+    const file = input.files[0];
+    if (!file) return;
+    showStatus("🔄 Analizando " + file.name + "…", "info");
+    const fd = new FormData();
+    fd.append("archivo", file);
+    try {
+      const resp = await fetch("{{ url_for('parse_gcode') }}", { method: "POST", body: fd });
+      const data = await resp.json();
+      if (!data.ok) { showStatus("⚠️ " + (data.error || "No se pudo procesar."), "err"); return; }
+      const partes = [];
+      if (data.peso_g != null)   { pesoField.value = data.peso_g;     flash(pesoField);   partes.push(data.peso_g + " g"); }
+      if (data.tiempo_h != null) { tiempoField.value = data.tiempo_h; flash(tiempoField); partes.push(data.tiempo_h + " h"); }
+      showStatus("✅ Nuevo archivo listo: " + file.name + " (" + partes.join(" · ") + "). Guarda para reemplazar.", "ok");
+    } catch (e) {
+      showStatus("⚠️ Error de red al procesar el archivo.", "err");
+    }
+  });
+})();
+</script>
 {% endblock %}

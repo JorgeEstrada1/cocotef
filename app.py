@@ -368,6 +368,13 @@ def registrar_rutas(app):
         archivo.save(os.path.join(_gcodes_dir(), nombre_disco))
         return nombre_disco
 
+    def _guardar_bytes_gcode(data, ext):
+        """Escribe bytes en disco con nombre UUID. Devuelve el nombre en disco."""
+        nombre_disco = f"{uuid.uuid4().hex}{ext}"
+        with open(os.path.join(_gcodes_dir(), nombre_disco), "wb") as fh:
+            fh.write(data)
+        return nombre_disco
+
     def _borrar_gcode(nombre):
         """Borra el archivo físico si existe (evita basura en disco)."""
         if not nombre:
@@ -506,6 +513,25 @@ def registrar_rutas(app):
             p.filamento_id = int(f["filamento_id"]) if f.get("filamento_id") else None
             p.fecha_entrega = _parse_fecha_opt(f.get("fecha_entrega"))
             p.usuario_id = int(f["usuario_id"]) if f.get("usuario_id") else None
+
+            # ¿Subió un archivo nuevo? -> reparsear, borrar el viejo y guardar el nuevo
+            nuevo = request.files.get("gcode_file")
+            if nuevo and nuevo.filename:
+                ext = os.path.splitext(secure_filename(nuevo.filename))[1].lower()
+                if ext in EXTENSIONES_GCODE:
+                    data = nuevo.read()
+                    meta = parsear_metadatos_slicer(data, nuevo.filename)
+                    if meta["peso_g"] is not None:
+                        p.peso_g = meta["peso_g"]
+                    if meta["tiempo_h"] is not None:
+                        p.tiempo_estimado_h = meta["tiempo_h"]
+                    _borrar_gcode(p.gcode_filename)            # elimina el archivo viejo
+                    p.gcode_filename = _guardar_bytes_gcode(data, ext)  # guarda el nuevo (UUID)
+                    flash("Archivo G-code reemplazado y metadatos actualizados.", "ok")
+                else:
+                    flash("Formato de archivo no soportado; se conservó el anterior.", "error")
+            # Si NO subió archivo, gcode_filename queda intacto.
+
             db.session.commit()  # el costo se recalcula solo (propiedad derivada)
             flash("Proyecto actualizado.", "ok")
             return redirect(url_for("proyectos"))
