@@ -6,11 +6,15 @@ import os
 import io
 import csv
 import re
+import uuid
 import zipfile
 from datetime import date, datetime
 
 from flask import (Flask, render_template, request, redirect, url_for, flash,
-                   Response, jsonify)
+                   Response, jsonify, send_from_directory)
+from werkzeug.utils import secure_filename
+
+EXTENSIONES_GCODE = (".gcode", ".gco", ".3mf")
 from flask_login import (LoginManager, login_user, logout_user,
                          login_required, current_user)
 from flask_bcrypt import Bcrypt
@@ -60,8 +64,9 @@ def crear_app():
     # Límite de subida para archivos de slicer (.gcode pueden ser grandes)
     app.config.setdefault("MAX_CONTENT_LENGTH", 128 * 1024 * 1024)  # 128 MB
 
-    # Asegura que exista la carpeta 'instance/' para la BD SQLite
+    # Asegura que existan las carpetas de datos locales
     os.makedirs(os.path.join(app.root_path, "instance"), exist_ok=True)
+    os.makedirs(os.path.join(app.root_path, "instance", "gcodes"), exist_ok=True)
 
     db.init_app(app)
     bcrypt.init_app(app)
@@ -87,6 +92,8 @@ def migrar_esquema():
         proy_cols = [c["name"] for c in inspect(db.engine).get_columns("proyectos")]
         if "fecha_entrega" not in proy_cols:
             conn.execute(text("ALTER TABLE proyectos ADD COLUMN fecha_entrega DATE"))
+        if "gcode_filename" not in proy_cols:
+            conn.execute(text("ALTER TABLE proyectos ADD COLUMN gcode_filename VARCHAR(120)"))
 
 
 def migrar_y_sembrar_usuarios():
@@ -346,6 +353,32 @@ def registrar_rutas(app):
             return None
         return datetime.strptime(valor, "%Y-%m-%d").date()
 
+    def _gcodes_dir():
+        return os.path.join(app.root_path, "instance", "gcodes")
+
+    def _guardar_gcode(archivo):
+        """Guarda el archivo con nombre UUID (evita colisiones). Devuelve el nombre en disco o None."""
+        if not archivo or not archivo.filename:
+            return None
+        base = secure_filename(archivo.filename)
+        ext = os.path.splitext(base)[1].lower()
+        if ext not in EXTENSIONES_GCODE:
+            return None
+        nombre_disco = f"{uuid.uuid4().hex}{ext}"
+        archivo.save(os.path.join(_gcodes_dir(), nombre_disco))
+        return nombre_disco
+
+    def _borrar_gcode(nombre):
+        """Borra el archivo físico si existe (evita basura en disco)."""
+        if not nombre:
+            return
+        ruta = os.path.join(_gcodes_dir(), nombre)
+        try:
+            if os.path.isfile(ruta):
+                os.remove(ruta)
+        except OSError:
+            pass
+
     def _filtrar_mes(query, columna_fecha, per):
         return query.filter(extract("year", columna_fecha) == per["anio"],
                             extract("month", columna_fecha) == per["mes"])
@@ -442,6 +475,8 @@ def registrar_rutas(app):
         if not p.nombre:
             flash("El nombre del proyecto es obligatorio.", "error")
         else:
+            # Guarda físicamente el G-code/3MF subido con el formulario
+            p.gcode_filename = _guardar_gcode(request.files.get("gcode_file"))
             db.session.add(p)
             db.session.commit()
             flash("Proyecto creado.", "ok")
@@ -479,10 +514,20 @@ def registrar_rutas(app):
                                usuarios=User.query.all(),
                                estados=Proyecto.ESTADOS)
 
+    @app.route("/proyectos/<int:pid>/gcode")
+    @login_required
+    def descargar_gcode(pid):
+        p = Proyecto.query.get_or_404(pid)
+        if not p.gcode_filename:
+            return redirect(url_for("proyectos"))
+        return send_from_directory(_gcodes_dir(), p.gcode_filename, as_attachment=True)
+
     @app.route("/proyectos/<int:pid>/eliminar", methods=["POST"])
     @login_required
     def eliminar_proyecto(pid):
-        db.session.delete(Proyecto.query.get_or_404(pid))
+        p = Proyecto.query.get_or_404(pid)
+        _borrar_gcode(p.gcode_filename)   # borra el archivo físico para no dejar basura
+        db.session.delete(p)
         db.session.commit()
         return redirect(url_for("proyectos"))
 

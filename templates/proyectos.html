@@ -8,6 +8,7 @@
 <div class="bg-card border border-edge rounded-xl shadow-lg p-5 mb-6">
   <h2 class="font-semibold mb-4 text-slate-200">Nuevo proyecto</h2>
   <form method="post" action="{{ url_for('nuevo_proyecto') }}" id="form-proyecto"
+        enctype="multipart/form-data"
         class="grid grid-cols-1 md:grid-cols-3 gap-3">
 
     <!-- Carga inteligente de G-code / .3mf -->
@@ -18,7 +19,7 @@
           <p class="text-sm font-medium text-slate-200">Carga inteligente de G-code</p>
           <p class="text-xs text-slate-500">Sube tu <b class="text-cyan-300">.gcode</b> o <b class="text-cyan-300">.3mf</b> y autocompletamos peso y tiempo.</p>
         </div>
-        <input type="file" id="gcode_file" accept=".gcode,.gco,.3mf"
+        <input type="file" id="gcode_file" name="gcode_file" accept=".gcode,.gco,.3mf"
                class="text-sm text-slate-400 bg-card border border-edge rounded-lg cursor-pointer
                       file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:cursor-pointer
                       file:bg-gradient-to-r file:from-cyan-500 file:to-indigo-500 file:text-slate-900
@@ -65,7 +66,15 @@
     <tbody>
       {% for p in proyectos %}
       <tr class="border-t border-edge hover:bg-cardh/50">
-        <td class="p-3 font-medium text-slate-200">{{ p.nombre }}</td>
+        <td class="p-3 font-medium text-slate-200">
+          <span class="inline-flex items-center gap-1.5">
+            {{ p.nombre }}
+            {% if p.gcode_filename %}
+            <a href="{{ url_for('descargar_gcode', pid=p.id) }}" title="Descargar G-code / 3MF"
+               class="text-cyan-400 hover:text-cyan-300 text-xs" aria-label="Descargar archivo">⬇</a>
+            {% endif %}
+          </span>
+        </td>
         <td class="p-3 text-slate-400">{{ p.cliente or '—' }}</td>
         <td class="p-3 text-slate-300">{{ p.peso_g }} g</td>
         <td class="p-3 text-slate-300">{{ p.tiempo_estimado_h }} h</td>

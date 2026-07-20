@@ -88,6 +88,7 @@ class Proyecto(db.Model):
     tiempo_estimado_h = db.Column(db.Float, default=0.0)      # horas estimadas
     filamento_id = db.Column(db.Integer, db.ForeignKey("filamentos.id"))
     fecha_entrega = db.Column(db.Date)                        # fecha comprometida de entrega
+    gcode_filename = db.Column(db.String(120))               # nombre del archivo G-code/3MF en disco
 
     usuario_id = db.Column(db.Integer, db.ForeignKey("usuarios.id"))
     creado = db.Column(db.DateTime, default=datetime.utcnow)
