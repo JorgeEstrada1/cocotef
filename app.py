@@ -8,13 +8,33 @@ import csv
 from datetime import date, datetime
 
 from flask import Flask, render_template, request, redirect, url_for, flash, Response
-from sqlalchemy import extract
+from flask_login import (LoginManager, login_user, logout_user,
+                         login_required, current_user)
+from flask_bcrypt import Bcrypt
+from sqlalchemy import extract, inspect, text
 
 from config import Config
-from models import db, Usuario, Filamento, Proyecto, Venta, Gasto
+from models import db, User, Filamento, Proyecto, Venta, Gasto
 
 MESES = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
          "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
+
+# Credenciales sembradas por defecto en el primer arranque.
+# IMPORTANTE: cambia estas contraseñas después de iniciar sesión.
+SOCIOS_SEED = [
+    {"username": "jorge", "nombre": "Jorge", "color": "#2dd4bf", "password": "jorge123"},
+    {"username": "tefi",  "nombre": "Tefi",  "color": "#22d3ee", "password": "tefi123"},
+]
+
+bcrypt = Bcrypt()
+login_manager = LoginManager()
+login_manager.login_view = "login"
+login_manager.login_message = "Inicia sesión para continuar."
+
+
+@login_manager.user_loader
+def cargar_usuario(user_id):
+    return db.session.get(User, int(user_id))
 
 
 def crear_app():
@@ -25,23 +45,53 @@ def crear_app():
     os.makedirs(os.path.join(app.root_path, "instance"), exist_ok=True)
 
     db.init_app(app)
+    bcrypt.init_app(app)
+    login_manager.init_app(app)
 
     with app.app_context():
         db.create_all()
-        sembrar_datos_iniciales()
+        migrar_y_sembrar_usuarios()
 
     registrar_rutas(app)
     return app
 
 
-def sembrar_datos_iniciales():
-    """Crea los 2 socios si la tabla está vacía."""
-    if Usuario.query.count() == 0:
-        db.session.add_all([
-            Usuario(nombre="Tú", color="#6366f1"),
-            Usuario(nombre="Mi novia", color="#ec4899"),
-        ])
-        db.session.commit()
+def migrar_y_sembrar_usuarios():
+    """
+    Evoluciona la tabla 'usuarios' para autenticación y siembra jorge/tefi.
+    - Añade las columnas username/password_hash si no existen (sin borrar datos).
+    - Convierte socios legacy (sin username) en jorge/tefi conservando su id
+      (y por tanto las claves foráneas de ventas/gastos/proyectos).
+    """
+    cols = [c["name"] for c in inspect(db.engine).get_columns("usuarios")]
+    with db.engine.begin() as conn:
+        if "username" not in cols:
+            conn.execute(text("ALTER TABLE usuarios ADD COLUMN username VARCHAR(80)"))
+        if "password_hash" not in cols:
+            conn.execute(text("ALTER TABLE usuarios ADD COLUMN password_hash VARCHAR(200)"))
+
+    def _hash(pw):
+        return bcrypt.generate_password_hash(pw).decode("utf-8")
+
+    usuarios = User.query.order_by(User.id).all()
+    if not usuarios:
+        # BD nueva: crea jorge y tefi
+        for s in SOCIOS_SEED:
+            db.session.add(User(username=s["username"], nombre=s["nombre"],
+                                color=s["color"], password_hash=_hash(s["password"])))
+    else:
+        # Normaliza filas legacy (sin username) a jorge/tefi por orden de id
+        legacy = [u for u in usuarios if not u.username]
+        for u, s in zip(legacy, SOCIOS_SEED):
+            u.username, u.nombre, u.color = s["username"], s["nombre"], s["color"]
+            u.password_hash = _hash(s["password"])
+        # Crea los que falten (por si había menos de 2 socios)
+        existentes = {u.username for u in User.query.all() if u.username}
+        for s in SOCIOS_SEED:
+            if s["username"] not in existentes:
+                db.session.add(User(username=s["username"], nombre=s["nombre"],
+                                    color=s["color"], password_hash=_hash(s["password"])))
+    db.session.commit()
 
 
 # --------------------------------------------------------------------------
@@ -91,7 +141,7 @@ def calcular_balance(anio=None, mes=None):
       - 'Ajuste'  = lo que debería tener (50% ganancia) - lo que tiene en mano.
                     Positivo = le deben plata / Negativo = debe plata.
     """
-    usuarios = Usuario.query.all()
+    usuarios = User.query.all()
 
     # Filtra ventas/gastos por mes si se indica un periodo
     vq, gq = Venta.query, Gasto.query
@@ -138,6 +188,30 @@ def calcular_balance(anio=None, mes=None):
 # --------------------------------------------------------------------------
 def registrar_rutas(app):
 
+    # ---------- Autenticación ----------
+    @app.route("/login", methods=["GET", "POST"])
+    def login():
+        if current_user.is_authenticated:
+            return redirect(url_for("dashboard"))
+        if request.method == "POST":
+            username = request.form.get("username", "").strip().lower()
+            password = request.form.get("password", "")
+            user = User.query.filter_by(username=username).first()
+            if user and user.password_hash and \
+                    bcrypt.check_password_hash(user.password_hash, password):
+                login_user(user)
+                destino = request.args.get("next") or url_for("dashboard")
+                return redirect(destino)
+            flash("Usuario o contraseña incorrectos.", "error")
+        return render_template("login.html")
+
+    @app.route("/logout")
+    @login_required
+    def logout():
+        logout_user()
+        flash("Sesión cerrada correctamente.", "ok")
+        return redirect(url_for("login"))
+
     def _parse_fecha(valor):
         if not valor:
             return date.today()
@@ -174,6 +248,7 @@ def registrar_rutas(app):
 
     # ---------- Dashboard ----------
     @app.route("/")
+    @login_required
     def dashboard():
         per = _contexto_periodo()
         bal = calcular_balance(per["anio"], per["mes"])
@@ -187,14 +262,16 @@ def registrar_rutas(app):
 
     # ---------- Proyectos / Impresiones ----------
     @app.route("/proyectos")
+    @login_required
     def proyectos():
         lista = Proyecto.query.order_by(Proyecto.creado.desc()).all()
         return render_template("proyectos.html", proyectos=lista,
                                filamentos=Filamento.query.all(),
-                               usuarios=Usuario.query.all(),
+                               usuarios=User.query.all(),
                                estados=Proyecto.ESTADOS)
 
     @app.route("/proyectos/nuevo", methods=["POST"])
+    @login_required
     def nuevo_proyecto():
         f = request.form
         p = Proyecto(
@@ -204,7 +281,7 @@ def registrar_rutas(app):
             peso_g=float(f.get("peso_g") or 0),
             tiempo_estimado_h=float(f.get("tiempo_estimado_h") or 0),
             filamento_id=int(f["filamento_id"]) if f.get("filamento_id") else None,
-            usuario_id=int(f["usuario_id"]) if f.get("usuario_id") else None,
+            usuario_id=current_user.id,  # registra automáticamente al usuario autenticado
         )
         if not p.nombre:
             flash("El nombre del proyecto es obligatorio.", "error")
@@ -215,6 +292,7 @@ def registrar_rutas(app):
         return redirect(url_for("proyectos"))
 
     @app.route("/proyectos/<int:pid>/estado", methods=["POST"])
+    @login_required
     def cambiar_estado(pid):
         p = Proyecto.query.get_or_404(pid)
         nuevo = request.form.get("estado")
@@ -224,6 +302,7 @@ def registrar_rutas(app):
         return redirect(url_for("proyectos"))
 
     @app.route("/proyectos/<int:pid>/editar", methods=["GET", "POST"])
+    @login_required
     def editar_proyecto(pid):
         p = Proyecto.query.get_or_404(pid)
         if request.method == "POST":
@@ -240,10 +319,11 @@ def registrar_rutas(app):
             return redirect(url_for("proyectos"))
         return render_template("editar_proyecto.html", p=p,
                                filamentos=Filamento.query.all(),
-                               usuarios=Usuario.query.all(),
+                               usuarios=User.query.all(),
                                estados=Proyecto.ESTADOS)
 
     @app.route("/proyectos/<int:pid>/eliminar", methods=["POST"])
+    @login_required
     def eliminar_proyecto(pid):
         db.session.delete(Proyecto.query.get_or_404(pid))
         db.session.commit()
@@ -251,10 +331,12 @@ def registrar_rutas(app):
 
     # ---------- Filamentos ----------
     @app.route("/filamentos")
+    @login_required
     def filamentos():
         return render_template("filamentos.html", filamentos=Filamento.query.all())
 
     @app.route("/filamentos/nuevo", methods=["POST"])
+    @login_required
     def nuevo_filamento():
         f = request.form
         fil = Filamento(
@@ -269,6 +351,7 @@ def registrar_rutas(app):
         return redirect(url_for("filamentos"))
 
     @app.route("/filamentos/<int:fid>/eliminar", methods=["POST"])
+    @login_required
     def eliminar_filamento(fid):
         db.session.delete(Filamento.query.get_or_404(fid))
         db.session.commit()
@@ -276,17 +359,19 @@ def registrar_rutas(app):
 
     # ---------- Ventas ----------
     @app.route("/ventas")
+    @login_required
     def ventas():
         per = _contexto_periodo()
         q = _filtrar_mes(Venta.query, Venta.fecha, per)
         lista = q.order_by(Venta.fecha.desc(), Venta.id.desc()).all()
         return render_template("ventas.html", ventas=lista, per=per,
-                               usuarios=Usuario.query.all(),
+                               usuarios=User.query.all(),
                                proyectos=Proyecto.query.all(),
                                metodos=Venta.METODOS,
                                total=sum(v.monto for v in lista))
 
     @app.route("/ventas/nueva", methods=["POST"])
+    @login_required
     def nueva_venta():
         f = request.form
         v = Venta(
@@ -294,7 +379,7 @@ def registrar_rutas(app):
             monto=float(f.get("monto") or 0),
             metodo_pago=f.get("metodo_pago") or "Efectivo",
             fecha=_parse_fecha(f.get("fecha")),
-            usuario_id=int(f["usuario_id"]) if f.get("usuario_id") else None,
+            usuario_id=current_user.id,  # registra automáticamente al usuario autenticado
             proyecto_id=int(f["proyecto_id"]) if f.get("proyecto_id") else None,
         )
         if v.monto <= 0:
@@ -306,6 +391,7 @@ def registrar_rutas(app):
         return redirect(url_for("ventas"))
 
     @app.route("/ventas/<int:vid>/editar", methods=["GET", "POST"])
+    @login_required
     def editar_venta(vid):
         v = Venta.query.get_or_404(vid)
         if request.method == "POST":
@@ -324,17 +410,19 @@ def registrar_rutas(app):
             flash("Venta actualizada.", "ok")
             return redirect(url_for("ventas"))
         return render_template("editar_venta.html", v=v,
-                               usuarios=Usuario.query.all(),
+                               usuarios=User.query.all(),
                                proyectos=Proyecto.query.all(),
                                metodos=Venta.METODOS)
 
     @app.route("/ventas/<int:vid>/eliminar", methods=["POST"])
+    @login_required
     def eliminar_venta(vid):
         db.session.delete(Venta.query.get_or_404(vid))
         db.session.commit()
         return redirect(url_for("ventas"))
 
     @app.route("/ventas/export.csv")
+    @login_required
     def exportar_ventas():
         per = _contexto_periodo()
         filas = _filtrar_mes(Venta.query, Venta.fecha, per) \
@@ -350,16 +438,18 @@ def registrar_rutas(app):
 
     # ---------- Gastos ----------
     @app.route("/gastos")
+    @login_required
     def gastos():
         per = _contexto_periodo()
         q = _filtrar_mes(Gasto.query, Gasto.fecha, per)
         lista = q.order_by(Gasto.fecha.desc(), Gasto.id.desc()).all()
         return render_template("gastos.html", gastos=lista, per=per,
-                               usuarios=Usuario.query.all(),
+                               usuarios=User.query.all(),
                                categorias=Gasto.CATEGORIAS,
                                total=sum(g.monto for g in lista))
 
     @app.route("/gastos/nuevo", methods=["POST"])
+    @login_required
     def nuevo_gasto():
         f = request.form
         g = Gasto(
@@ -367,7 +457,7 @@ def registrar_rutas(app):
             descripcion=f.get("descripcion", "").strip(),
             monto=float(f.get("monto") or 0),
             fecha=_parse_fecha(f.get("fecha")),
-            usuario_id=int(f["usuario_id"]) if f.get("usuario_id") else None,
+            usuario_id=current_user.id,  # registra automáticamente al usuario autenticado
         )
         if g.monto <= 0:
             flash("El monto debe ser mayor a 0.", "error")
@@ -378,6 +468,7 @@ def registrar_rutas(app):
         return redirect(url_for("gastos"))
 
     @app.route("/gastos/<int:gid>/editar", methods=["GET", "POST"])
+    @login_required
     def editar_gasto(gid):
         g = Gasto.query.get_or_404(gid)
         if request.method == "POST":
@@ -395,16 +486,18 @@ def registrar_rutas(app):
             flash("Gasto actualizado.", "ok")
             return redirect(url_for("gastos"))
         return render_template("editar_gasto.html", g=g,
-                               usuarios=Usuario.query.all(),
+                               usuarios=User.query.all(),
                                categorias=Gasto.CATEGORIAS)
 
     @app.route("/gastos/<int:gid>/eliminar", methods=["POST"])
+    @login_required
     def eliminar_gasto(gid):
         db.session.delete(Gasto.query.get_or_404(gid))
         db.session.commit()
         return redirect(url_for("gastos"))
 
     @app.route("/gastos/export.csv")
+    @login_required
     def exportar_gastos():
         per = _contexto_periodo()
         filas = _filtrar_mes(Gasto.query, Gasto.fecha, per) \
@@ -419,6 +512,7 @@ def registrar_rutas(app):
 
     # ---------- Balance / Reparto ----------
     @app.route("/balance")
+    @login_required
     def balance():
         per = _contexto_periodo()
         return render_template("balance.html",

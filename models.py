@@ -1,24 +1,31 @@
 """Modelos de base de datos (SQLite via SQLAlchemy)."""
 from datetime import date, datetime
 from flask_sqlalchemy import SQLAlchemy
+from flask_login import UserMixin
 
 db = SQLAlchemy()
 
 
-class Usuario(db.Model):
-    """Cada socio del emprendimiento (tu novia y tú)."""
+class User(UserMixin, db.Model):
+    """
+    Socio del emprendimiento con capacidad de autenticación (jorge / tefi).
+    Tabla 'usuarios': se mantiene el nombre para conservar las claves foráneas
+    existentes (Venta/Gasto/Proyecto -> usuario_id).
+    """
     __tablename__ = "usuarios"
 
     id = db.Column(db.Integer, primary_key=True)
-    nombre = db.Column(db.String(80), nullable=False, unique=True)
-    color = db.Column(db.String(20), default="#6366f1")  # color para la UI
+    username = db.Column(db.String(80), unique=True)       # usuario de inicio de sesión
+    password_hash = db.Column(db.String(200))              # hash bcrypt
+    nombre = db.Column(db.String(80), nullable=False)      # nombre visible ("Jorge")
+    color = db.Column(db.String(20), default="#2dd4bf")    # color para la UI
 
     ventas = db.relationship("Venta", backref="usuario", lazy=True)
     gastos = db.relationship("Gasto", backref="usuario", lazy=True)
     proyectos = db.relationship("Proyecto", backref="usuario", lazy=True)
 
     def __repr__(self):
-        return f"<Usuario {self.nombre}>"
+        return f"<User {self.username}>"
 
 
 class Filamento(db.Model):

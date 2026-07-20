@@ -1,41 +1,40 @@
 {% extends "base.html" %}
 {% block titulo %}Editar proyecto{% endblock %}
 {% block contenido %}
+{% set inp = "w-full mt-1 bg-base border border-edge rounded-lg px-3 py-2 text-slate-100 focus:border-teal-400 focus:ring-2 focus:ring-teal-500/20 outline-none" %}
 <div class="max-w-2xl mx-auto">
   <div class="flex items-center justify-between mb-6">
-    <h1 class="text-2xl font-bold">Editar proyecto</h1>
-    <a href="{{ url_for('proyectos') }}" class="text-slate-500 hover:underline text-sm">← Volver</a>
+    <h1 class="text-2xl font-bold text-slate-100">Editar proyecto</h1>
+    <a href="{{ url_for('proyectos') }}" class="text-slate-400 hover:text-teal-300 text-sm">← Volver</a>
   </div>
 
   <form method="post" action="{{ url_for('editar_proyecto', pid=p.id) }}"
-        class="bg-white rounded-xl shadow p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+        class="bg-card border border-edge rounded-xl shadow-lg p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
     <label class="block">
-      <span class="text-sm text-slate-500">Nombre de la pieza</span>
-      <input name="nombre" value="{{ p.nombre }}" required class="w-full border rounded-lg px-3 py-2 mt-1">
+      <span class="text-sm text-slate-400">Nombre de la pieza</span>
+      <input name="nombre" value="{{ p.nombre }}" required class="{{ inp }}">
     </label>
     <label class="block">
-      <span class="text-sm text-slate-500">Cliente</span>
-      <input name="cliente" value="{{ p.cliente or '' }}" class="w-full border rounded-lg px-3 py-2 mt-1">
+      <span class="text-sm text-slate-400">Cliente</span>
+      <input name="cliente" value="{{ p.cliente or '' }}" class="{{ inp }}">
     </label>
     <label class="block">
-      <span class="text-sm text-slate-500">Estado</span>
-      <select name="estado" class="w-full border rounded-lg px-3 py-2 mt-1">
+      <span class="text-sm text-slate-400">Estado</span>
+      <select name="estado" class="{{ inp }}">
         {% for e in estados %}<option {{ 'selected' if e == p.estado }}>{{ e }}</option>{% endfor %}
       </select>
     </label>
     <label class="block">
-      <span class="text-sm text-slate-500">Peso (g)</span>
-      <input name="peso_g" type="number" step="0.1" value="{{ p.peso_g }}"
-             class="w-full border rounded-lg px-3 py-2 mt-1">
+      <span class="text-sm text-slate-400">Peso (g)</span>
+      <input name="peso_g" type="number" step="0.1" value="{{ p.peso_g }}" class="{{ inp }}">
     </label>
     <label class="block">
-      <span class="text-sm text-slate-500">Tiempo estimado (h)</span>
-      <input name="tiempo_estimado_h" type="number" step="0.1" value="{{ p.tiempo_estimado_h }}"
-             class="w-full border rounded-lg px-3 py-2 mt-1">
+      <span class="text-sm text-slate-400">Tiempo estimado (h)</span>
+      <input name="tiempo_estimado_h" type="number" step="0.1" value="{{ p.tiempo_estimado_h }}" class="{{ inp }}">
     </label>
     <label class="block">
-      <span class="text-sm text-slate-500">Filamento</span>
-      <select name="filamento_id" class="w-full border rounded-lg px-3 py-2 mt-1">
+      <span class="text-sm text-slate-400">Filamento</span>
+      <select name="filamento_id" class="{{ inp }}">
         <option value="">— Ninguno —</option>
         {% for f in filamentos %}
           <option value="{{ f.id }}" {{ 'selected' if f.id == p.filamento_id }}>{{ f.etiqueta }}</option>
@@ -43,21 +42,21 @@
       </select>
     </label>
     <label class="block">
-      <span class="text-sm text-slate-500">Asignado a</span>
-      <select name="usuario_id" class="w-full border rounded-lg px-3 py-2 mt-1">
+      <span class="text-sm text-slate-400">Responsable</span>
+      <select name="usuario_id" class="{{ inp }}">
         <option value="">— Nadie —</option>
         {% for u in usuarios %}
           <option value="{{ u.id }}" {{ 'selected' if u.id == p.usuario_id }}>{{ u.nombre }}</option>
         {% endfor %}
       </select>
     </label>
-    <div class="md:col-span-2 bg-slate-50 rounded-lg p-3 text-sm text-slate-600">
-      Costo de filamento actual: <b>{{ p.costo_filamento | money }}</b>
-      <span class="text-slate-400">(se recalcula al guardar según peso y filamento)</span>
+    <div class="md:col-span-2 bg-cardh border border-edge rounded-lg p-3 text-sm text-slate-300">
+      Costo de filamento actual: <b class="text-teal-400">{{ p.costo_filamento | money }}</b>
+      <span class="text-slate-500">(se recalcula al guardar según peso y filamento)</span>
     </div>
     <div class="md:col-span-2 flex gap-3">
-      <button class="bg-indigo-600 text-white rounded-lg px-5 py-2 hover:bg-indigo-500">Guardar cambios</button>
-      <a href="{{ url_for('proyectos') }}" class="px-5 py-2 rounded-lg bg-slate-100 hover:bg-slate-200">Cancelar</a>
+      <button class="bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-900 font-semibold rounded-lg px-5 py-2 hover:opacity-90 transition">Guardar cambios</button>
+      <a href="{{ url_for('proyectos') }}" class="px-5 py-2 rounded-lg bg-base border border-edge text-slate-300 hover:bg-cardh transition">Cancelar</a>
     </div>
   </form>
 </div>

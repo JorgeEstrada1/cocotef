@@ -1,74 +1,80 @@
 {% extends "base.html" %}
 {% block titulo %}Ventas{% endblock %}
 {% block contenido %}
+{% set inp = "bg-base border border-edge rounded-lg px-3 py-2 text-slate-100 placeholder-slate-600 focus:border-teal-400 focus:ring-2 focus:ring-teal-500/20 outline-none" %}
+
 <div class="flex items-center justify-between mb-6">
-  <h1 class="text-2xl font-bold">Ventas</h1>
+  <h1 class="text-2xl font-bold text-slate-100">Ventas</h1>
   <div class="flex items-center gap-4">
     <a href="{{ url_for('exportar_ventas', periodo=per.periodo) }}"
-       class="bg-emerald-600 text-white text-sm px-3 py-2 rounded-lg hover:bg-emerald-500">
+       class="bg-teal-500/10 text-teal-300 border border-teal-500/30 text-sm px-3 py-2 rounded-lg hover:bg-teal-500/20 transition">
       ⬇ Descargar CSV ({{ per.periodo_label }})
     </a>
-    <span class="text-lg">Total: <b class="text-green-600">{{ total | money }}</b></span>
+    <span class="text-lg text-slate-300">Total: <b class="text-teal-400">{{ total | money }}</b></span>
   </div>
 </div>
 
 {% set endpoint = 'ventas' %}
 {% include "_selector_mes.html" %}
 
-<div class="bg-white rounded-xl shadow p-5 mb-6">
-  <h2 class="font-semibold mb-4">Registrar venta</h2>
+<div class="bg-card border border-edge rounded-xl shadow-lg p-5 mb-6">
+  <h2 class="font-semibold mb-4 text-slate-200">Registrar venta</h2>
   <form method="post" action="{{ url_for('nueva_venta') }}"
         class="grid grid-cols-1 md:grid-cols-3 gap-3">
-    <input name="descripcion" placeholder="Descripción" class="border rounded-lg px-3 py-2 md:col-span-2">
-    <input name="monto" type="number" step="0.01" placeholder="Monto cobrado *" required
-           class="border rounded-lg px-3 py-2">
-    <select name="metodo_pago" class="border rounded-lg px-3 py-2">
+    <input name="descripcion" placeholder="Descripción" class="{{ inp }} md:col-span-2">
+    <input name="monto" type="number" step="0.01" placeholder="Monto cobrado *" required class="{{ inp }}">
+    <select name="metodo_pago" class="{{ inp }}">
       {% for m in metodos %}<option>{{ m }}</option>{% endfor %}
     </select>
-    <input name="fecha" type="date" class="border rounded-lg px-3 py-2">
-    <select name="usuario_id" class="border rounded-lg px-3 py-2" required>
-      <option value="">— ¿Quién cobró? —</option>
-      {% for u in usuarios %}<option value="{{ u.id }}">{{ u.nombre }}</option>{% endfor %}
-    </select>
-    <select name="proyecto_id" class="border rounded-lg px-3 py-2">
+    <input name="fecha" type="date" class="{{ inp }}">
+    <select name="proyecto_id" class="{{ inp }}">
       <option value="">— Proyecto (opcional) —</option>
       {% for p in proyectos %}<option value="{{ p.id }}">{{ p.nombre }}</option>{% endfor %}
     </select>
-    <button class="md:col-span-3 bg-green-600 text-white rounded-lg py-2 hover:bg-green-500">
+    <button class="md:col-span-3 bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-900 font-semibold rounded-lg py-2 hover:opacity-90 transition">
       Registrar venta
     </button>
   </form>
+  <p class="text-xs text-slate-500 mt-2">
+    Se registrará como cobrada por <b class="text-teal-300">{{ current_user.nombre }}</b>.
+  </p>
 </div>
 
-<div class="bg-white rounded-xl shadow overflow-x-auto">
+<div class="bg-card border border-edge rounded-xl shadow-lg overflow-x-auto">
   <table class="w-full text-sm">
-    <thead class="bg-slate-50 text-slate-500 text-left">
+    <thead class="bg-cardh text-slate-400 text-left">
       <tr><th class="p-3">Fecha</th><th class="p-3">Descripción</th><th class="p-3">Método</th>
           <th class="p-3">Cobró</th><th class="p-3">Monto</th><th class="p-3"></th></tr>
     </thead>
     <tbody>
       {% for v in ventas %}
-      <tr class="border-t">
-        <td class="p-3">{{ v.fecha }}</td>
-        <td class="p-3">{{ v.descripcion or '—' }}
-          {% if v.proyecto %}<span class="text-xs text-slate-400">· {{ v.proyecto.nombre }}</span>{% endif %}
+      <tr class="border-t border-edge hover:bg-cardh/50">
+        <td class="p-3 text-slate-300">{{ v.fecha }}</td>
+        <td class="p-3 text-slate-200">{{ v.descripcion or '—' }}
+          {% if v.proyecto %}<span class="text-xs text-slate-500">· {{ v.proyecto.nombre }}</span>{% endif %}
         </td>
-        <td class="p-3">{{ v.metodo_pago }}</td>
-        <td class="p-3">{{ v.usuario.nombre if v.usuario else '—' }}</td>
-        <td class="p-3 font-semibold text-green-600">{{ v.monto | money }}</td>
+        <td class="p-3 text-slate-300">{{ v.metodo_pago }}</td>
+        <td class="p-3">
+          {% if v.usuario %}
+            <span class="inline-flex items-center gap-1.5">
+              <span class="w-2.5 h-2.5 rounded-full" style="background: {{ v.usuario.color }}"></span>
+              <span class="text-slate-300">{{ v.usuario.nombre }}</span>
+            </span>
+          {% else %}<span class="text-slate-500">—</span>{% endif %}
+        </td>
+        <td class="p-3 font-semibold text-teal-400">{{ v.monto | money }}</td>
         <td class="p-3">
           <div class="flex items-center gap-3">
-            <a href="{{ url_for('editar_venta', vid=v.id) }}"
-               class="text-indigo-600 hover:underline">Editar</a>
+            <a href="{{ url_for('editar_venta', vid=v.id) }}" class="text-teal-400 hover:text-teal-300">Editar</a>
             <form method="post" action="{{ url_for('eliminar_venta', vid=v.id) }}"
                   onsubmit="return confirm('¿Eliminar venta?')">
-              <button class="text-red-500 hover:underline">Eliminar</button>
+              <button class="text-rose-400 hover:text-rose-300">Eliminar</button>
             </form>
           </div>
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="6" class="p-4 text-center text-slate-400">Sin ventas aún.</td></tr>
+      <tr><td colspan="6" class="p-4 text-center text-slate-500">Sin ventas este mes.</td></tr>
       {% endfor %}
     </tbody>
   </table>

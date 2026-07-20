@@ -1,27 +1,27 @@
 {% extends "base.html" %}
 {% block titulo %}Balance{% endblock %}
 {% block contenido %}
-<h1 class="text-2xl font-bold mb-6">💰 Balance y reparto de la plata</h1>
+<h1 class="text-2xl font-bold mb-6 text-slate-100">💰 Balance y reparto de la plata</h1>
 
 {% set endpoint = 'balance' %}
 {% include "_selector_mes.html" %}
 
 <div class="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-8">
-  <div class="bg-white rounded-xl shadow p-5">
-    <p class="text-sm text-slate-500">Ingresos</p>
-    <p class="text-xl font-bold text-green-600">{{ bal.total_ingresos | money }}</p>
+  <div class="bg-card border border-edge rounded-xl shadow-lg p-5">
+    <p class="text-sm text-slate-400">Ingresos</p>
+    <p class="text-xl font-bold text-teal-400">{{ bal.total_ingresos | money }}</p>
   </div>
-  <div class="bg-white rounded-xl shadow p-5">
-    <p class="text-sm text-slate-500">Gastos</p>
-    <p class="text-xl font-bold text-red-500">{{ bal.total_gastos | money }}</p>
+  <div class="bg-card border border-edge rounded-xl shadow-lg p-5">
+    <p class="text-sm text-slate-400">Gastos</p>
+    <p class="text-xl font-bold text-rose-400">{{ bal.total_gastos | money }}</p>
   </div>
-  <div class="bg-white rounded-xl shadow p-5">
-    <p class="text-sm text-slate-500">Ganancia neta</p>
-    <p class="text-xl font-bold {{ 'text-green-600' if bal.ganancia_neta >= 0 else 'text-red-500' }}">
+  <div class="bg-card border border-edge rounded-xl shadow-lg p-5">
+    <p class="text-sm text-slate-400">Ganancia neta</p>
+    <p class="text-xl font-bold {{ 'text-cyan-400' if bal.ganancia_neta >= 0 else 'text-rose-400' }}">
       {{ bal.ganancia_neta | money }}
     </p>
   </div>
-  <div class="bg-indigo-600 text-white rounded-xl shadow p-5">
+  <div class="bg-gradient-to-br from-teal-500 to-cyan-600 text-slate-900 rounded-xl shadow-lg p-5">
     <p class="text-sm opacity-80">A cada uno (50%)</p>
     <p class="text-xl font-bold">{{ bal.parte_justa | money }}</p>
   </div>
@@ -29,24 +29,25 @@
 
 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
   {% for s in bal.socios %}
-  <div class="bg-white rounded-xl shadow p-6 border-t-4" style="border-color: {{ s.usuario.color }}">
-    <h2 class="text-lg font-bold mb-4 flex items-center gap-2">
+  <div class="bg-card border border-edge rounded-xl shadow-lg p-6 border-t-4" style="border-top-color: {{ s.usuario.color }}">
+    <h2 class="text-lg font-bold mb-4 flex items-center gap-2 text-slate-100">
       <span class="w-4 h-4 rounded-full" style="background: {{ s.usuario.color }}"></span>
       {{ s.usuario.nombre }}
     </h2>
     <div class="space-y-2 text-sm">
-      <div class="flex justify-between"><span class="text-slate-500">Cobró (ventas)</span>
-        <span class="font-medium text-green-600">{{ s.cobrado | money }}</span></div>
-      <div class="flex justify-between"><span class="text-slate-500">Aportó (gastos que pagó)</span>
-        <span class="font-medium text-red-500">{{ s.aporte | money }}</span></div>
-      <div class="flex justify-between border-t pt-2"><span class="text-slate-500">Tiene en mano ahora</span>
-        <span class="font-medium">{{ s.en_mano | money }}</span></div>
-      <div class="flex justify-between"><span class="text-slate-500">Le corresponde (50%)</span>
-        <span class="font-medium">{{ s.parte_justa | money }}</span></div>
+      <div class="flex justify-between"><span class="text-slate-400">Cobró (ventas)</span>
+        <span class="font-medium text-teal-400">{{ s.cobrado | money }}</span></div>
+      <div class="flex justify-between"><span class="text-slate-400">Aportó (gastos que pagó)</span>
+        <span class="font-medium text-rose-400">{{ s.aporte | money }}</span></div>
+      <div class="flex justify-between border-t border-edge pt-2"><span class="text-slate-400">Tiene en mano ahora</span>
+        <span class="font-medium text-slate-200">{{ s.en_mano | money }}</span></div>
+      <div class="flex justify-between"><span class="text-slate-400">Le corresponde (50%)</span>
+        <span class="font-medium text-slate-200">{{ s.parte_justa | money }}</span></div>
     </div>
-    <div class="mt-4 p-3 rounded-lg
-         {{ 'bg-green-50 text-green-700' if s.ajuste > 0.5
-            else ('bg-red-50 text-red-700' if s.ajuste < -0.5 else 'bg-slate-50 text-slate-500') }}">
+    <div class="mt-4 p-3 rounded-lg border text-sm
+         {{ 'bg-teal-500/10 text-teal-300 border-teal-500/30' if s.ajuste > 0.5
+            else ('bg-rose-500/10 text-rose-300 border-rose-500/30' if s.ajuste < -0.5
+                  else 'bg-cardh text-slate-400 border-edge') }}">
       {% if s.ajuste > 0.5 %}
         Para quedar parejos, <b>debe recibir {{ s.ajuste | money }}</b>.
       {% elif s.ajuste < -0.5 %}
@@ -59,7 +60,7 @@
   {% endfor %}
 </div>
 
-<p class="text-xs text-slate-400 mt-6">
+<p class="text-xs text-slate-500 mt-6">
   El reparto asume ganancias divididas equitativamente. "En mano" = ventas cobradas − gastos pagados.
   El ajuste iguala a ambos socios al 50% de la ganancia neta.
 </p>

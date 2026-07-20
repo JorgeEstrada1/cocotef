@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block titulo %}Iniciar sesión{% endblock %}
+{% block contenido %}
+<div class="min-h-[85vh] flex items-center justify-center">
+  <div class="relative w-full max-w-md">
+
+    <!-- Glow decorativo -->
+    <div class="absolute -inset-1 bg-gradient-to-r from-teal-500/30 to-cyan-500/30 blur-2xl rounded-3xl"></div>
+
+    <div class="relative bg-card border border-edge rounded-2xl shadow-2xl p-8">
+      <div class="text-center mb-8">
+        <div class="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-br from-teal-500 to-cyan-600
+                    flex items-center justify-center text-3xl shadow-lg shadow-teal-500/20 mb-4">
+          🖨️
+        </div>
+        <h1 class="text-2xl font-bold bg-gradient-to-r from-teal-300 to-cyan-300 bg-clip-text text-transparent">
+          Taller 3D
+        </h1>
+        <p class="text-slate-500 text-sm mt-1">Gestión &amp; control financiero</p>
+      </div>
+
+      <form method="post" action="{{ url_for('login') }}" class="space-y-4">
+        <label class="block">
+          <span class="text-xs uppercase tracking-wide text-slate-400">Usuario</span>
+          <input name="username" autofocus required autocomplete="username"
+                 placeholder="jorge / tefi"
+                 class="w-full mt-1 bg-base border border-edge rounded-xl px-4 py-3 text-slate-100
+                        placeholder-slate-600 focus:border-teal-400 focus:ring-2 focus:ring-teal-500/30 outline-none transition">
+        </label>
+        <label class="block">
+          <span class="text-xs uppercase tracking-wide text-slate-400">Contraseña</span>
+          <input name="password" type="password" required autocomplete="current-password"
+                 placeholder="••••••••"
+                 class="w-full mt-1 bg-base border border-edge rounded-xl px-4 py-3 text-slate-100
+                        placeholder-slate-600 focus:border-teal-400 focus:ring-2 focus:ring-teal-500/30 outline-none transition">
+        </label>
+
+        <button type="submit"
+                class="w-full bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-900 font-semibold
+                       rounded-xl py-3 mt-2 hover:opacity-90 active:scale-[.99] transition shadow-lg shadow-teal-500/20">
+          Ingresar
+        </button>
+      </form>
+
+      <p class="text-center text-xs text-slate-600 mt-6">
+        Sistema local privado · Acceso solo para socios
+      </p>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -21,9 +21,28 @@ python app.py
 
 Luego abre el navegador en: http://127.0.0.1:5000
 
-La base de datos SQLite se crea sola en `instance/taller3d.db` la primera vez,
-junto con los 2 socios ("Tú" y "Mi novia"). Puedes renombrarlos editándolos en
-la base de datos o cambiando `sembrar_datos_iniciales()` en `app.py`.
+## 🔐 Acceso (autenticación)
+
+El sistema está protegido con inicio de sesión (Flask-Login + bcrypt). En el
+primer arranque se siembran automáticamente dos usuarios:
+
+| Usuario | Contraseña inicial |
+|---------|--------------------|
+| `jorge` | `jorge123`         |
+| `tefi`  | `tefi123`          |
+
+> ⚠️ **Cambia estas contraseñas** editando `SOCIOS_SEED` en `app.py` (y borrando
+> luego `instance/taller3d.db` para re-sembrar), o generando un nuevo hash con
+> `bcrypt.generate_password_hash("nueva").decode()`.
+
+Todas las rutas (Panel, Proyectos, Ventas, Gastos, Balance) requieren sesión
+iniciada. Cada venta, gasto o proyecto se asocia automáticamente al usuario
+autenticado que lo registra.
+
+La base de datos SQLite se crea sola en `instance/taller3d.db` la primera vez.
+Si ya existía una BD de la v1.0, al arrancar se migra automáticamente (se añaden
+las columnas de autenticación y los 2 socios se convierten en jorge/tefi
+conservando todos los datos y relaciones).
 
 ## Estructura
 

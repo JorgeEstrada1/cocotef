@@ -1,86 +1,87 @@
 {% extends "base.html" %}
 {% block titulo %}Panel{% endblock %}
 {% block contenido %}
-<h1 class="text-2xl font-bold mb-6">Panel general</h1>
+<h1 class="text-2xl font-bold mb-6 text-slate-100">Panel general</h1>
 
 {% set endpoint = 'dashboard' %}
 {% include "_selector_mes.html" %}
 
-<div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-  <div class="bg-white rounded-xl shadow p-5">
-    <p class="text-sm text-slate-500">Ingresos</p>
-    <p class="text-2xl font-bold text-green-600">{{ bal.total_ingresos | money }}</p>
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+  <div class="bg-card border border-edge rounded-xl shadow-lg p-5">
+    <p class="text-sm text-slate-400">Ingresos</p>
+    <p class="text-2xl font-bold text-teal-400">{{ bal.total_ingresos | money }}</p>
   </div>
-  <div class="bg-white rounded-xl shadow p-5">
-    <p class="text-sm text-slate-500">Gastos</p>
-    <p class="text-2xl font-bold text-red-500">{{ bal.total_gastos | money }}</p>
+  <div class="bg-card border border-edge rounded-xl shadow-lg p-5">
+    <p class="text-sm text-slate-400">Gastos</p>
+    <p class="text-2xl font-bold text-rose-400">{{ bal.total_gastos | money }}</p>
   </div>
-  <div class="bg-white rounded-xl shadow p-5">
-    <p class="text-sm text-slate-500">Ganancia neta</p>
-    <p class="text-2xl font-bold {{ 'text-green-600' if bal.ganancia_neta >= 0 else 'text-red-500' }}">
+  <div class="bg-card border border-edge rounded-xl shadow-lg p-5">
+    <p class="text-sm text-slate-400">Ganancia neta</p>
+    <p class="text-2xl font-bold {{ 'text-cyan-400' if bal.ganancia_neta >= 0 else 'text-rose-400' }}">
       {{ bal.ganancia_neta | money }}
     </p>
   </div>
 </div>
 
-<div class="bg-white rounded-xl shadow p-5 mb-6">
-  <h2 class="font-semibold mb-4">Ingresos vs. Gastos — {{ per.periodo_label }}</h2>
+<div class="bg-card border border-edge rounded-xl shadow-lg p-5 mb-6">
+  <h2 class="font-semibold mb-4 text-slate-200">Ingresos vs. Gastos — {{ per.periodo_label }}</h2>
   <div class="h-64">
     <canvas id="graficoFinanzas"></canvas>
   </div>
 </div>
 
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-  <div class="bg-white rounded-xl shadow p-5">
-    <h2 class="font-semibold mb-4">Reparto (50% / 50%)</h2>
+  <div class="bg-card border border-edge rounded-xl shadow-lg p-5">
+    <h2 class="font-semibold mb-4 text-slate-200">Reparto (50% / 50%)</h2>
     {% for s in bal.socios %}
-      <div class="flex items-center justify-between py-2 border-b last:border-0">
+      <div class="flex items-center justify-between py-2 border-b border-edge last:border-0">
         <span class="flex items-center gap-2">
           <span class="w-3 h-3 rounded-full" style="background: {{ s.usuario.color }}"></span>
           {{ s.usuario.nombre }}
         </span>
-        <span class="text-sm">
-          Le corresponde <b>{{ s.parte_justa | money }}</b> ·
+        <span class="text-sm text-slate-400">
+          Le corresponde <b class="text-slate-200">{{ s.parte_justa | money }}</b> ·
           {% if s.ajuste > 0.5 %}
-            <span class="text-green-600">recibe {{ s.ajuste | money }}</span>
+            <span class="text-teal-400">recibe {{ s.ajuste | money }}</span>
           {% elif s.ajuste < -0.5 %}
-            <span class="text-red-500">aporta {{ (-s.ajuste) | money }}</span>
+            <span class="text-rose-400">aporta {{ (-s.ajuste) | money }}</span>
           {% else %}
-            <span class="text-slate-400">a mano</span>
+            <span class="text-slate-500">a mano</span>
           {% endif %}
         </span>
       </div>
     {% endfor %}
-    <a href="{{ url_for('balance') }}" class="inline-block mt-3 text-indigo-600 text-sm">Ver detalle →</a>
+    <a href="{{ url_for('balance') }}" class="inline-block mt-3 text-teal-400 hover:text-teal-300 text-sm">Ver detalle →</a>
   </div>
 
-  <div class="bg-white rounded-xl shadow p-5">
-    <h2 class="font-semibold mb-4">Estado de proyectos</h2>
+  <div class="bg-card border border-edge rounded-xl shadow-lg p-5">
+    <h2 class="font-semibold mb-4 text-slate-200">Estado de proyectos</h2>
     {% for estado, n in conteo_estados.items() %}
-      <div class="flex justify-between py-1.5 text-sm">
-        <span>{{ estado }}</span><span class="font-semibold">{{ n }}</span>
+      <div class="flex justify-between py-1.5 text-sm border-b border-edge last:border-0">
+        <span class="text-slate-300">{{ estado }}</span>
+        <span class="font-semibold text-cyan-400">{{ n }}</span>
       </div>
     {% endfor %}
   </div>
 </div>
 
-<h2 class="font-semibold mt-8 mb-3">Últimos proyectos</h2>
-<div class="bg-white rounded-xl shadow overflow-hidden">
+<h2 class="font-semibold mt-8 mb-3 text-slate-200">Últimos proyectos</h2>
+<div class="bg-card border border-edge rounded-xl shadow-lg overflow-x-auto">
   <table class="w-full text-sm">
-    <thead class="bg-slate-50 text-slate-500 text-left">
+    <thead class="bg-cardh text-slate-400 text-left">
       <tr><th class="p-3">Pieza</th><th class="p-3">Cliente</th>
           <th class="p-3">Estado</th><th class="p-3">Costo filamento</th></tr>
     </thead>
     <tbody>
       {% for p in proyectos %}
-      <tr class="border-t">
-        <td class="p-3 font-medium">{{ p.nombre }}</td>
-        <td class="p-3">{{ p.cliente or '—' }}</td>
-        <td class="p-3">{{ p.estado }}</td>
-        <td class="p-3">{{ p.costo_filamento | money }}</td>
+      <tr class="border-t border-edge hover:bg-cardh/50">
+        <td class="p-3 font-medium text-slate-200">{{ p.nombre }}</td>
+        <td class="p-3 text-slate-400">{{ p.cliente or '—' }}</td>
+        <td class="p-3 text-slate-300">{{ p.estado }}</td>
+        <td class="p-3 text-teal-400">{{ p.costo_filamento | money }}</td>
       </tr>
       {% else %}
-      <tr><td colspan="4" class="p-4 text-center text-slate-400">Sin proyectos aún.</td></tr>
+      <tr><td colspan="4" class="p-4 text-center text-slate-500">Sin proyectos aún.</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -100,7 +101,7 @@
           {{ bal.total_gastos | round(2) }},
           {{ bal.ganancia_neta | round(2) }}
         ],
-        backgroundColor: ["#16a34a", "#ef4444", "#6366f1"],
+        backgroundColor: ["#2dd4bf", "#fb7185", "#22d3ee"],
         borderRadius: 6
       }]
     },
@@ -110,15 +111,18 @@
       plugins: {
         legend: { display: false },
         tooltip: {
-          callbacks: {
-            label: (c) => "$" + c.parsed.y.toLocaleString("es-CO")
-          }
+          callbacks: { label: (c) => "$" + c.parsed.y.toLocaleString("es-CO") }
         }
       },
       scales: {
         y: {
           beginAtZero: true,
-          ticks: { callback: (v) => "$" + v.toLocaleString("es-CO") }
+          grid: { color: "#232c42" },
+          ticks: { color: "#94a3b8", callback: (v) => "$" + v.toLocaleString("es-CO") }
+        },
+        x: {
+          grid: { display: false },
+          ticks: { color: "#cbd5e1" }
         }
       }
     }

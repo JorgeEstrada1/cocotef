@@ -1,37 +1,36 @@
 {% extends "base.html" %}
 {% block titulo %}Editar gasto{% endblock %}
 {% block contenido %}
+{% set inp = "w-full mt-1 bg-base border border-edge rounded-lg px-3 py-2 text-slate-100 focus:border-teal-400 focus:ring-2 focus:ring-teal-500/20 outline-none" %}
 <div class="max-w-2xl mx-auto">
   <div class="flex items-center justify-between mb-6">
-    <h1 class="text-2xl font-bold">Editar gasto</h1>
-    <a href="{{ url_for('gastos') }}" class="text-slate-500 hover:underline text-sm">← Volver</a>
+    <h1 class="text-2xl font-bold text-slate-100">Editar gasto</h1>
+    <a href="{{ url_for('gastos') }}" class="text-slate-400 hover:text-teal-300 text-sm">← Volver</a>
   </div>
 
   <form method="post" action="{{ url_for('editar_gasto', gid=g.id) }}"
-        class="bg-white rounded-xl shadow p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+        class="bg-card border border-edge rounded-xl shadow-lg p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
     <label class="block">
-      <span class="text-sm text-slate-500">Categoría</span>
-      <select name="categoria" class="w-full border rounded-lg px-3 py-2 mt-1">
+      <span class="text-sm text-slate-400">Categoría</span>
+      <select name="categoria" class="{{ inp }}">
         {% for c in categorias %}<option {{ 'selected' if c == g.categoria }}>{{ c }}</option>{% endfor %}
       </select>
     </label>
     <label class="block">
-      <span class="text-sm text-slate-500">Monto</span>
-      <input name="monto" type="number" step="0.01" value="{{ g.monto }}" required
-             class="w-full border rounded-lg px-3 py-2 mt-1">
+      <span class="text-sm text-slate-400">Monto</span>
+      <input name="monto" type="number" step="0.01" value="{{ g.monto }}" required class="{{ inp }}">
     </label>
     <label class="block md:col-span-2">
-      <span class="text-sm text-slate-500">Descripción</span>
-      <input name="descripcion" value="{{ g.descripcion or '' }}" class="w-full border rounded-lg px-3 py-2 mt-1">
+      <span class="text-sm text-slate-400">Descripción</span>
+      <input name="descripcion" value="{{ g.descripcion or '' }}" class="{{ inp }}">
     </label>
     <label class="block">
-      <span class="text-sm text-slate-500">Fecha</span>
-      <input name="fecha" type="date" value="{{ g.fecha.isoformat() }}"
-             class="w-full border rounded-lg px-3 py-2 mt-1">
+      <span class="text-sm text-slate-400">Fecha</span>
+      <input name="fecha" type="date" value="{{ g.fecha.isoformat() }}" class="{{ inp }}">
     </label>
     <label class="block">
-      <span class="text-sm text-slate-500">¿Quién pagó?</span>
-      <select name="usuario_id" class="w-full border rounded-lg px-3 py-2 mt-1">
+      <span class="text-sm text-slate-400">¿Quién pagó?</span>
+      <select name="usuario_id" class="{{ inp }}">
         <option value="">— Nadie —</option>
         {% for u in usuarios %}
           <option value="{{ u.id }}" {{ 'selected' if u.id == g.usuario_id }}>{{ u.nombre }}</option>
@@ -39,8 +38,8 @@
       </select>
     </label>
     <div class="md:col-span-2 flex gap-3">
-      <button class="bg-red-500 text-white rounded-lg px-5 py-2 hover:bg-red-400">Guardar cambios</button>
-      <a href="{{ url_for('gastos') }}" class="px-5 py-2 rounded-lg bg-slate-100 hover:bg-slate-200">Cancelar</a>
+      <button class="bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-900 font-semibold rounded-lg px-5 py-2 hover:opacity-90 transition">Guardar cambios</button>
+      <a href="{{ url_for('gastos') }}" class="px-5 py-2 rounded-lg bg-base border border-edge text-slate-300 hover:bg-cardh transition">Cancelar</a>
     </div>
   </form>
 </div>

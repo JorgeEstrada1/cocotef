@@ -1,63 +1,66 @@
 {% extends "base.html" %}
 {% block titulo %}Proyectos{% endblock %}
 {% block contenido %}
-<h1 class="text-2xl font-bold mb-6">Proyectos / Impresiones</h1>
+<h1 class="text-2xl font-bold mb-6 text-slate-100">Proyectos / Impresiones</h1>
 
-<div class="bg-white rounded-xl shadow p-5 mb-6">
-  <h2 class="font-semibold mb-4">Nuevo proyecto</h2>
+{% set inp = "bg-base border border-edge rounded-lg px-3 py-2 text-slate-100 placeholder-slate-600 focus:border-teal-400 focus:ring-2 focus:ring-teal-500/20 outline-none" %}
+
+<div class="bg-card border border-edge rounded-xl shadow-lg p-5 mb-6">
+  <h2 class="font-semibold mb-4 text-slate-200">Nuevo proyecto</h2>
   <form method="post" action="{{ url_for('nuevo_proyecto') }}"
         class="grid grid-cols-1 md:grid-cols-3 gap-3">
-    <input name="nombre" placeholder="Nombre de la pieza *" required
-           class="border rounded-lg px-3 py-2">
-    <input name="cliente" placeholder="Cliente" class="border rounded-lg px-3 py-2">
-    <select name="estado" class="border rounded-lg px-3 py-2">
+    <input name="nombre" placeholder="Nombre de la pieza *" required class="{{ inp }}">
+    <input name="cliente" placeholder="Cliente" class="{{ inp }}">
+    <select name="estado" class="{{ inp }}">
       {% for e in estados %}<option>{{ e }}</option>{% endfor %}
     </select>
-    <input name="peso_g" type="number" step="0.1" placeholder="Peso (g)"
-           class="border rounded-lg px-3 py-2">
-    <input name="tiempo_estimado_h" type="number" step="0.1" placeholder="Tiempo (horas)"
-           class="border rounded-lg px-3 py-2">
-    <select name="filamento_id" class="border rounded-lg px-3 py-2">
+    <input name="peso_g" type="number" step="0.1" placeholder="Peso (g)" class="{{ inp }}">
+    <input name="tiempo_estimado_h" type="number" step="0.1" placeholder="Tiempo (horas)" class="{{ inp }}">
+    <select name="filamento_id" class="{{ inp }}">
       <option value="">— Filamento —</option>
       {% for f in filamentos %}<option value="{{ f.id }}">{{ f.etiqueta }}</option>{% endfor %}
     </select>
-    <select name="usuario_id" class="border rounded-lg px-3 py-2">
-      <option value="">— Asignado a —</option>
-      {% for u in usuarios %}<option value="{{ u.id }}">{{ u.nombre }}</option>{% endfor %}
-    </select>
-    <button class="md:col-span-3 bg-indigo-600 text-white rounded-lg py-2 hover:bg-indigo-500">
+    <button class="md:col-span-3 bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-900 font-semibold rounded-lg py-2 hover:opacity-90 transition">
       Guardar proyecto
     </button>
   </form>
-  {% if not filamentos %}
-    <p class="text-xs text-amber-600 mt-2">Tip: agrega filamentos primero para calcular el costo automático.</p>
-  {% endif %}
+  <p class="text-xs text-slate-500 mt-2">
+    Se registrará automáticamente a <b class="text-teal-300">{{ current_user.nombre }}</b> como responsable.
+    {% if not filamentos %} · Agrega filamentos primero para calcular el costo automático.{% endif %}
+  </p>
 </div>
 
-<div class="bg-white rounded-xl shadow overflow-x-auto">
+<div class="bg-card border border-edge rounded-xl shadow-lg overflow-x-auto">
   <table class="w-full text-sm">
-    <thead class="bg-slate-50 text-slate-500 text-left">
+    <thead class="bg-cardh text-slate-400 text-left">
       <tr>
         <th class="p-3">Pieza</th><th class="p-3">Cliente</th><th class="p-3">Peso</th>
         <th class="p-3">Tiempo</th><th class="p-3">Filamento</th>
-        <th class="p-3">Costo</th><th class="p-3">Asignado</th>
+        <th class="p-3">Costo</th><th class="p-3">Responsable</th>
         <th class="p-3">Estado</th><th class="p-3"></th>
       </tr>
     </thead>
     <tbody>
       {% for p in proyectos %}
-      <tr class="border-t">
-        <td class="p-3 font-medium">{{ p.nombre }}</td>
-        <td class="p-3">{{ p.cliente or '—' }}</td>
-        <td class="p-3">{{ p.peso_g }} g</td>
-        <td class="p-3">{{ p.tiempo_estimado_h }} h</td>
-        <td class="p-3">{{ p.filamento.etiqueta if p.filamento else '—' }}</td>
-        <td class="p-3">{{ p.costo_filamento | money }}</td>
-        <td class="p-3">{{ p.usuario.nombre if p.usuario else '—' }}</td>
+      <tr class="border-t border-edge hover:bg-cardh/50">
+        <td class="p-3 font-medium text-slate-200">{{ p.nombre }}</td>
+        <td class="p-3 text-slate-400">{{ p.cliente or '—' }}</td>
+        <td class="p-3 text-slate-300">{{ p.peso_g }} g</td>
+        <td class="p-3 text-slate-300">{{ p.tiempo_estimado_h }} h</td>
+        <td class="p-3 text-slate-300">{{ p.filamento.etiqueta if p.filamento else '—' }}</td>
+        <td class="p-3 text-teal-400">{{ p.costo_filamento | money }}</td>
+        <td class="p-3">
+          {% if p.usuario %}
+            <span class="inline-flex items-center gap-1.5">
+              <span class="w-2.5 h-2.5 rounded-full" style="background: {{ p.usuario.color }}"></span>
+              <span class="text-slate-300">{{ p.usuario.nombre }}</span>
+            </span>
+          {% else %}<span class="text-slate-500">—</span>{% endif %}
+        </td>
         <td class="p-3">
           <form method="post" action="{{ url_for('cambiar_estado', pid=p.id) }}">
             <select name="estado" onchange="this.form.submit()"
-                    class="border rounded px-2 py-1 text-xs">
+                    class="bg-base border border-edge rounded px-2 py-1 text-xs text-slate-200">
               {% for e in estados %}
                 <option {{ 'selected' if e == p.estado }}>{{ e }}</option>
               {% endfor %}
@@ -66,17 +69,16 @@
         </td>
         <td class="p-3">
           <div class="flex items-center gap-3">
-            <a href="{{ url_for('editar_proyecto', pid=p.id) }}"
-               class="text-indigo-600 hover:underline">Editar</a>
+            <a href="{{ url_for('editar_proyecto', pid=p.id) }}" class="text-teal-400 hover:text-teal-300">Editar</a>
             <form method="post" action="{{ url_for('eliminar_proyecto', pid=p.id) }}"
                   onsubmit="return confirm('¿Eliminar proyecto?')">
-              <button class="text-red-500 hover:underline">Eliminar</button>
+              <button class="text-rose-400 hover:text-rose-300">Eliminar</button>
             </form>
           </div>
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="9" class="p-4 text-center text-slate-400">Sin proyectos aún.</td></tr>
+      <tr><td colspan="9" class="p-4 text-center text-slate-500">Sin proyectos aún.</td></tr>
       {% endfor %}
     </tbody>
   </table>

@@ -5,26 +5,77 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Taller 3D — {% block titulo %}Gestión{% endblock %}</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            base:   "#090d16",   // fondo general
+            card:   "#151c2c",   // tarjetas / tablas
+            cardh:  "#1b2338",   // hover
+            edge:   "#232c42",   // bordes
+          },
+          fontFamily: {
+            sans: ["Inter", "system-ui", "sans-serif"],
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    body { background-color: #090d16; }
+    /* Scrollbar oscuro */
+    ::-webkit-scrollbar { height: 10px; width: 10px; }
+    ::-webkit-scrollbar-track { background: #0d1320; }
+    ::-webkit-scrollbar-thumb { background: #232c42; border-radius: 6px; }
+    ::-webkit-scrollbar-thumb:hover { background: #2dd4bf; }
+    /* Inputs oscuros por defecto */
+    input, select { color-scheme: dark; }
+  </style>
 </head>
-<body class="bg-slate-100 text-slate-800 min-h-screen">
-  <nav class="bg-slate-900 text-white">
+<body class="bg-base text-slate-200 min-h-screen font-sans antialiased">
+  {% if current_user.is_authenticated %}
+  <nav class="bg-card/80 backdrop-blur border-b border-edge sticky top-0 z-20">
     <div class="max-w-6xl mx-auto px-4 flex flex-wrap items-center gap-1 py-3">
-      <span class="font-bold text-lg mr-4">🖨️ Taller 3D</span>
-      {% set item = "px-3 py-2 rounded-lg hover:bg-slate-700 text-sm" %}
+      <span class="font-bold text-lg mr-4 flex items-center gap-2">
+        <span class="text-teal-400">🖨️</span>
+        <span class="bg-gradient-to-r from-teal-400 to-cyan-400 bg-clip-text text-transparent">Taller 3D</span>
+      </span>
+      {% set item = "px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-cardh hover:text-teal-300 transition" %}
       <a href="{{ url_for('dashboard') }}" class="{{ item }}">Panel</a>
       <a href="{{ url_for('proyectos') }}" class="{{ item }}">Proyectos</a>
       <a href="{{ url_for('filamentos') }}" class="{{ item }}">Filamentos</a>
       <a href="{{ url_for('ventas') }}" class="{{ item }}">Ventas</a>
       <a href="{{ url_for('gastos') }}" class="{{ item }}">Gastos</a>
-      <a href="{{ url_for('balance') }}" class="{{ item }} bg-indigo-600 hover:bg-indigo-500">💰 Balance</a>
+      <a href="{{ url_for('balance') }}"
+         class="{{ item }} bg-gradient-to-r from-teal-500 to-cyan-500 !text-slate-900 font-semibold hover:opacity-90">
+        💰 Balance
+      </a>
+
+      <div class="ml-auto flex items-center gap-3">
+        <span class="text-sm text-slate-400 hidden sm:inline">
+          Hola, <b class="text-teal-300">{{ current_user.nombre }}</b>
+        </span>
+        <span class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-slate-900"
+              style="background: {{ current_user.color }}">
+          {{ current_user.nombre[0] | upper }}
+        </span>
+        <a href="{{ url_for('logout') }}"
+           class="px-3 py-2 rounded-lg text-sm font-medium bg-rose-500/10 text-rose-300 border border-rose-500/30
+                  hover:bg-rose-500 hover:text-white transition flex items-center gap-1.5">
+          <span>⏻</span> Cerrar sesión
+        </a>
+      </div>
     </div>
   </nav>
+  {% endif %}
 
   <main class="max-w-6xl mx-auto px-4 py-6">
     {% with mensajes = get_flashed_messages(with_categories=true) %}
       {% for cat, msg in mensajes %}
-        <div class="mb-4 px-4 py-2 rounded-lg text-sm
-             {{ 'bg-red-100 text-red-700' if cat == 'error' else 'bg-green-100 text-green-700' }}">
+        <div class="mb-4 px-4 py-3 rounded-lg text-sm border
+             {{ 'bg-rose-500/10 text-rose-300 border-rose-500/30' if cat == 'error'
+                else 'bg-teal-500/10 text-teal-300 border-teal-500/30' }}">
           {{ msg }}
         </div>
       {% endfor %}

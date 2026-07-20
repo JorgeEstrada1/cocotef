@@ -1,37 +1,36 @@
 {% extends "base.html" %}
 {% block titulo %}Editar venta{% endblock %}
 {% block contenido %}
+{% set inp = "w-full mt-1 bg-base border border-edge rounded-lg px-3 py-2 text-slate-100 focus:border-teal-400 focus:ring-2 focus:ring-teal-500/20 outline-none" %}
 <div class="max-w-2xl mx-auto">
   <div class="flex items-center justify-between mb-6">
-    <h1 class="text-2xl font-bold">Editar venta</h1>
-    <a href="{{ url_for('ventas') }}" class="text-slate-500 hover:underline text-sm">← Volver</a>
+    <h1 class="text-2xl font-bold text-slate-100">Editar venta</h1>
+    <a href="{{ url_for('ventas') }}" class="text-slate-400 hover:text-teal-300 text-sm">← Volver</a>
   </div>
 
   <form method="post" action="{{ url_for('editar_venta', vid=v.id) }}"
-        class="bg-white rounded-xl shadow p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+        class="bg-card border border-edge rounded-xl shadow-lg p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
     <label class="block md:col-span-2">
-      <span class="text-sm text-slate-500">Descripción</span>
-      <input name="descripcion" value="{{ v.descripcion or '' }}" class="w-full border rounded-lg px-3 py-2 mt-1">
+      <span class="text-sm text-slate-400">Descripción</span>
+      <input name="descripcion" value="{{ v.descripcion or '' }}" class="{{ inp }}">
     </label>
     <label class="block">
-      <span class="text-sm text-slate-500">Monto cobrado</span>
-      <input name="monto" type="number" step="0.01" value="{{ v.monto }}" required
-             class="w-full border rounded-lg px-3 py-2 mt-1">
+      <span class="text-sm text-slate-400">Monto cobrado</span>
+      <input name="monto" type="number" step="0.01" value="{{ v.monto }}" required class="{{ inp }}">
     </label>
     <label class="block">
-      <span class="text-sm text-slate-500">Método de pago</span>
-      <select name="metodo_pago" class="w-full border rounded-lg px-3 py-2 mt-1">
+      <span class="text-sm text-slate-400">Método de pago</span>
+      <select name="metodo_pago" class="{{ inp }}">
         {% for m in metodos %}<option {{ 'selected' if m == v.metodo_pago }}>{{ m }}</option>{% endfor %}
       </select>
     </label>
     <label class="block">
-      <span class="text-sm text-slate-500">Fecha</span>
-      <input name="fecha" type="date" value="{{ v.fecha.isoformat() }}"
-             class="w-full border rounded-lg px-3 py-2 mt-1">
+      <span class="text-sm text-slate-400">Fecha</span>
+      <input name="fecha" type="date" value="{{ v.fecha.isoformat() }}" class="{{ inp }}">
     </label>
     <label class="block">
-      <span class="text-sm text-slate-500">¿Quién cobró?</span>
-      <select name="usuario_id" class="w-full border rounded-lg px-3 py-2 mt-1">
+      <span class="text-sm text-slate-400">¿Quién cobró?</span>
+      <select name="usuario_id" class="{{ inp }}">
         <option value="">— Nadie —</option>
         {% for u in usuarios %}
           <option value="{{ u.id }}" {{ 'selected' if u.id == v.usuario_id }}>{{ u.nombre }}</option>
@@ -39,8 +38,8 @@
       </select>
     </label>
     <label class="block md:col-span-2">
-      <span class="text-sm text-slate-500">Proyecto (opcional)</span>
-      <select name="proyecto_id" class="w-full border rounded-lg px-3 py-2 mt-1">
+      <span class="text-sm text-slate-400">Proyecto (opcional)</span>
+      <select name="proyecto_id" class="{{ inp }}">
         <option value="">— Ninguno —</option>
         {% for p in proyectos %}
           <option value="{{ p.id }}" {{ 'selected' if p.id == v.proyecto_id }}>{{ p.nombre }}</option>
@@ -48,8 +47,8 @@
       </select>
     </label>
     <div class="md:col-span-2 flex gap-3">
-      <button class="bg-green-600 text-white rounded-lg px-5 py-2 hover:bg-green-500">Guardar cambios</button>
-      <a href="{{ url_for('ventas') }}" class="px-5 py-2 rounded-lg bg-slate-100 hover:bg-slate-200">Cancelar</a>
+      <button class="bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-900 font-semibold rounded-lg px-5 py-2 hover:opacity-90 transition">Guardar cambios</button>
+      <a href="{{ url_for('ventas') }}" class="px-5 py-2 rounded-lg bg-base border border-edge text-slate-300 hover:bg-cardh transition">Cancelar</a>
     </div>
   </form>
 </div>
