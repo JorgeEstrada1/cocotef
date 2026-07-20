@@ -50,10 +50,20 @@ def crear_app():
 
     with app.app_context():
         db.create_all()
+        migrar_esquema()
         migrar_y_sembrar_usuarios()
 
     registrar_rutas(app)
     return app
+
+
+def migrar_esquema():
+    """Añade columnas nuevas a BDs existentes sin borrar datos (SQLite ALTER)."""
+    with db.engine.begin() as conn:
+        fil_cols = [c["name"] for c in inspect(db.engine).get_columns("filamentos")]
+        if "stock_minimo" not in fil_cols:
+            conn.execute(text(
+                "ALTER TABLE filamentos ADD COLUMN stock_minimo FLOAT DEFAULT 200"))
 
 
 def migrar_y_sembrar_usuarios():
@@ -257,8 +267,11 @@ def registrar_rutas(app):
             e: Proyecto.query.filter_by(estado=e).count()
             for e in Proyecto.ESTADOS
         }
+        # Alertas de stock crítico de filamento
+        alertas_stock = [f for f in Filamento.query.all() if f.bajo_stock]
         return render_template("dashboard.html", bal=bal, per=per,
-                               proyectos=proyectos, conteo_estados=conteo_estados)
+                               proyectos=proyectos, conteo_estados=conteo_estados,
+                               alertas_stock=alertas_stock)
 
     # ---------- Proyectos / Impresiones ----------
     @app.route("/proyectos")
@@ -344,10 +357,20 @@ def registrar_rutas(app):
             color=f.get("color", "").strip(),
             precio_rollo=float(f.get("precio_rollo") or 0),
             peso_rollo_g=float(f.get("peso_rollo_g") or 1000),
+            stock_minimo=float(f.get("stock_minimo") or 200),
         )
         db.session.add(fil)
         db.session.commit()
         flash("Filamento agregado.", "ok")
+        return redirect(url_for("filamentos"))
+
+    @app.route("/filamentos/<int:fid>/stock", methods=["POST"])
+    @login_required
+    def actualizar_stock_minimo(fid):
+        fil = Filamento.query.get_or_404(fid)
+        fil.stock_minimo = float(request.form.get("stock_minimo") or 0)
+        db.session.commit()
+        flash(f"Stock mínimo de {fil.etiqueta} actualizado.", "ok")
         return redirect(url_for("filamentos"))
 
     @app.route("/filamentos/<int:fid>/eliminar", methods=["POST"])

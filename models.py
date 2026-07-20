@@ -37,14 +37,32 @@ class Filamento(db.Model):
     color = db.Column(db.String(40), nullable=False)
     precio_rollo = db.Column(db.Float, nullable=False)        # precio del rollo ($)
     peso_rollo_g = db.Column(db.Float, default=1000.0)        # gramos por rollo (1kg default)
+    stock_minimo = db.Column(db.Float, default=200.0)         # umbral de alerta (gramos)
 
     proyectos = db.relationship("Proyecto", backref="filamento", lazy=True)
+
+    # Estados de proyecto que ya consumieron filamento (todo lo que se imprimió)
+    ESTADOS_CONSUMIDOS = ("Imprimiendo", "Terminado", "Entregado")
 
     @property
     def precio_por_gramo(self):
         if not self.peso_rollo_g:
             return 0.0
         return self.precio_rollo / self.peso_rollo_g
+
+    @property
+    def gramos_consumidos(self):
+        """Gramos usados por proyectos que ya se imprimieron."""
+        return sum(p.peso_g or 0 for p in self.proyectos
+                   if p.estado in self.ESTADOS_CONSUMIDOS)
+
+    @property
+    def gramos_restantes(self):
+        return (self.peso_rollo_g or 0) - self.gramos_consumidos
+
+    @property
+    def bajo_stock(self):
+        return self.gramos_restantes < (self.stock_minimo or 0)
 
     @property
     def etiqueta(self):

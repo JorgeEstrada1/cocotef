@@ -8,31 +8,57 @@
 <div class="bg-card border border-edge rounded-xl shadow-lg p-5 mb-6">
   <h2 class="font-semibold mb-4 text-slate-200">Nuevo filamento</h2>
   <form method="post" action="{{ url_for('nuevo_filamento') }}"
-        class="grid grid-cols-1 md:grid-cols-4 gap-3">
+        class="grid grid-cols-1 md:grid-cols-5 gap-3">
     <input name="tipo" placeholder="Tipo (PLA, PETG...)" required class="{{ inp }}">
     <input name="color" placeholder="Color" required class="{{ inp }}">
     <input name="precio_rollo" type="number" step="0.01" placeholder="Precio del rollo ($)" required class="{{ inp }}">
     <input name="peso_rollo_g" type="number" step="1" value="1000" placeholder="Peso del rollo (g)" class="{{ inp }}">
-    <button class="md:col-span-4 bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-900 font-semibold rounded-lg py-2 hover:opacity-90 transition">
+    <input name="stock_minimo" type="number" step="1" value="200" placeholder="Stock mínimo (g)" class="{{ inp }}">
+    <button class="md:col-span-5 bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-900 font-semibold rounded-lg py-2 hover:opacity-90 transition">
       Agregar filamento
     </button>
   </form>
+  <p class="text-xs text-slate-500 mt-2">
+    El <b class="text-amber-300">stock mínimo</b> dispara una alerta en el Panel cuando quedan menos gramos que ese umbral.
+  </p>
 </div>
 
 <div class="bg-card border border-edge rounded-xl shadow-lg overflow-x-auto">
   <table class="w-full text-sm">
     <thead class="bg-cardh text-slate-400 text-left">
       <tr><th class="p-3">Tipo</th><th class="p-3">Color</th><th class="p-3">Precio rollo</th>
-          <th class="p-3">Peso rollo</th><th class="p-3">Precio / gramo</th><th class="p-3"></th></tr>
+          <th class="p-3">Precio / g</th><th class="p-3">Restante</th>
+          <th class="p-3">Stock mín. (g)</th><th class="p-3">Estado</th><th class="p-3"></th></tr>
     </thead>
     <tbody>
       {% for f in filamentos %}
-      <tr class="border-t border-edge hover:bg-cardh/50">
+      <tr class="border-t border-edge hover:bg-cardh/50 {{ 'bg-amber-950/20' if f.bajo_stock }}">
         <td class="p-3 font-medium text-slate-200">{{ f.tipo }}</td>
         <td class="p-3 text-slate-300">{{ f.color }}</td>
         <td class="p-3 text-slate-300">{{ f.precio_rollo | money }}</td>
-        <td class="p-3 text-slate-300">{{ f.peso_rollo_g }} g</td>
         <td class="p-3 text-teal-400">${{ '%.2f' | format(f.precio_por_gramo) }}</td>
+        <td class="p-3 {{ 'text-amber-300 font-semibold' if f.bajo_stock else 'text-slate-300' }}">
+          {{ f.gramos_restantes | round | int }} g
+          <span class="text-slate-600 text-xs">/ {{ f.peso_rollo_g | round | int }} g</span>
+        </td>
+        <td class="p-3">
+          <form method="post" action="{{ url_for('actualizar_stock_minimo', fid=f.id) }}"
+                class="flex items-center gap-1">
+            <input name="stock_minimo" type="number" step="1" value="{{ f.stock_minimo | round | int }}"
+                   class="w-20 bg-base border border-edge rounded px-2 py-1 text-slate-100 text-xs
+                          focus:border-teal-400 outline-none">
+            <button class="text-xs text-teal-400 hover:text-teal-300">✓</button>
+          </form>
+        </td>
+        <td class="p-3">
+          {% if f.bajo_stock %}
+            <span class="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium
+                         bg-amber-500/15 text-amber-300 border border-amber-500/40">⚠️ Bajo</span>
+          {% else %}
+            <span class="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium
+                         bg-teal-500/10 text-teal-300 border border-teal-500/30">OK</span>
+          {% endif %}
+        </td>
         <td class="p-3">
           <form method="post" action="{{ url_for('eliminar_filamento', fid=f.id) }}"
                 onsubmit="return confirm('¿Eliminar filamento?')">
@@ -41,7 +67,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="6" class="p-4 text-center text-slate-500">Sin filamentos aún.</td></tr>
+      <tr><td colspan="8" class="p-4 text-center text-slate-500">Sin filamentos aún.</td></tr>
       {% endfor %}
     </tbody>
   </table>
