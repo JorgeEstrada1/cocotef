@@ -5,9 +5,12 @@ Ejecutar:  python app.py   ->  http://127.0.0.1:5000
 import os
 import io
 import csv
+import re
+import zipfile
 from datetime import date, datetime
 
-from flask import Flask, render_template, request, redirect, url_for, flash, Response
+from flask import (Flask, render_template, request, redirect, url_for, flash,
+                   Response, jsonify)
 from flask_login import (LoginManager, login_user, logout_user,
                          login_required, current_user)
 from flask_bcrypt import Bcrypt
@@ -54,6 +57,8 @@ def cargar_usuario(user_id):
 def crear_app():
     app = Flask(__name__)
     app.config.from_object(Config)
+    # Límite de subida para archivos de slicer (.gcode pueden ser grandes)
+    app.config.setdefault("MAX_CONTENT_LENGTH", 128 * 1024 * 1024)  # 128 MB
 
     # Asegura que exista la carpeta 'instance/' para la BD SQLite
     os.makedirs(os.path.join(app.root_path, "instance"), exist_ok=True)
@@ -211,6 +216,76 @@ def calcular_balance(anio=None, mes=None):
     }
 
 
+def _texto_de_archivo_slicer(data, filename=""):
+    """Extrae texto de un .gcode (texto plano) o .3mf (ZIP con configs/XML)."""
+    if zipfile.is_zipfile(io.BytesIO(data)):
+        partes = []
+        with zipfile.ZipFile(io.BytesIO(data)) as z:
+            for name in z.namelist():
+                if name.lower().endswith((".config", ".xml", ".gcode", ".txt", ".json")):
+                    try:
+                        partes.append(z.read(name).decode("utf-8", "ignore"))
+                    except Exception:
+                        pass
+        return "\n".join(partes)
+    return data.decode("utf-8", "ignore")
+
+
+def _fragmento_a_horas(frag):
+    """Convierte '1d 2h 30m 15s' -> horas (float)."""
+    d = re.search(r"(\d+)\s*d", frag)
+    h = re.search(r"(\d+)\s*h", frag)
+    mi = re.search(r"(\d+)\s*m", frag)
+    s = re.search(r"(\d+)\s*s", frag)
+    total = 0.0
+    if d:  total += int(d.group(1)) * 24
+    if h:  total += int(h.group(1))
+    if mi: total += int(mi.group(1)) / 60
+    if s:  total += int(s.group(1)) / 3600
+    return round(total, 2) if total else None
+
+
+def parsear_metadatos_slicer(data, filename=""):
+    """
+    Lee los metadatos de peso (g) y tiempo de impresión desde un archivo de
+    slicer (PrusaSlicer/Orca/Bambu/SuperSlicer/Cura, .gcode o .3mf) con regex.
+    Devuelve dict {peso_g, tiempo_h}. Valores None si no se encuentran.
+    """
+    texto = _texto_de_archivo_slicer(data, filename)
+
+    # ---- Peso en gramos ----
+    peso = None
+    patrones_peso = [
+        r"total\s+filament\s+(?:used|weight)\s*\[?g\]?\s*[:=]\s*([\d.]+)",  # total explícito
+        r'used_g="([\d.]+)"',                         # .3mf slice_info (por filamento)
+        r'key="weight"\s+value="([\d.]+)"',           # .3mf metadata
+        r"filament\s+used\s*\[g\]\s*[:=]\s*([\d.]+)",  # PrusaSlicer/Orca por herramienta
+        r"filament\s+weight[^\d]*([\d.]+)\s*g",       # genérico "filament weight: X g"
+    ]
+    for pat in patrones_peso:
+        encontrados = re.findall(pat, texto, re.I)
+        if encontrados:
+            # Suma (varios filamentos) salvo que el patrón ya sea un total
+            peso = round(sum(float(x) for x in encontrados), 2)
+            break
+
+    # ---- Tiempo en horas ----
+    tiempo = None
+    m = re.search(r";TIME:(\d+)", texto)                         # Cura (segundos)
+    if not m:
+        m = re.search(r'key="prediction"\s+value="(\d+)"', texto, re.I)  # .3mf (segundos)
+    if m:
+        tiempo = round(int(m.group(1)) / 3600, 2)
+    else:
+        etq = re.search(
+            r"(?:estimated printing time[^\n=:]*|total estimated time|model printing time)"
+            r"\s*[:=]\s*([0-9hdms \t]+)", texto, re.I)
+        if etq:
+            tiempo = _fragmento_a_horas(etq.group(1))
+
+    return {"peso_g": peso, "tiempo_h": tiempo}
+
+
 def obtener_proyectos_urgentes():
     """
     Proyectos NO entregados que vencen en <= 2 días o ya están retrasados,
@@ -321,6 +396,26 @@ def registrar_rutas(app):
                                urgentes=urgentes, tendencias=TENDENCIAS_VIRALES)
 
     # ---------- Proyectos / Impresiones ----------
+    @app.route("/proyectos/parse-gcode", methods=["POST"])
+    @login_required
+    def parse_gcode():
+        """Recibe un .gcode/.3mf por AJAX y devuelve peso (g) y tiempo (h)."""
+        archivo = request.files.get("archivo")
+        if not archivo or not archivo.filename:
+            return jsonify({"ok": False, "error": "No se recibió ningún archivo."}), 400
+        if not archivo.filename.lower().endswith((".gcode", ".gco", ".3mf")):
+            return jsonify({"ok": False, "error": "Formato no soportado (usa .gcode o .3mf)."}), 400
+        try:
+            data = archivo.read()
+            meta = parsear_metadatos_slicer(data, archivo.filename)
+        except Exception as e:
+            return jsonify({"ok": False, "error": f"No se pudo leer el archivo: {e}"}), 500
+        if meta["peso_g"] is None and meta["tiempo_h"] is None:
+            return jsonify({"ok": False,
+                            "error": "No se encontraron metadatos de peso/tiempo en el archivo."}), 200
+        return jsonify({"ok": True, "peso_g": meta["peso_g"],
+                        "tiempo_h": meta["tiempo_h"], "archivo": archivo.filename})
+
     @app.route("/proyectos")
     @login_required
     def proyectos():
