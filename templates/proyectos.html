@@ -40,6 +40,7 @@
         <th class="p-3">Pieza</th><th class="p-3">Cliente</th><th class="p-3">Peso</th>
         <th class="p-3">Tiempo</th><th class="p-3">Filamento</th>
         <th class="p-3">Costo</th><th class="p-3">Responsable</th>
+        <th class="p-3">Fecha entrega</th>
         <th class="p-3">Estado</th><th class="p-3"></th>
       </tr>
     </thead>
@@ -59,6 +60,24 @@
               <span class="text-slate-300">{{ p.usuario.nombre }}</span>
             </span>
           {% else %}<span class="text-slate-500">—</span>{% endif %}
+        </td>
+        <td class="p-3">
+          {% if p.fecha_entrega %}
+            <div class="text-slate-300">{{ p.fecha_entrega.strftime('%d/%m/%Y') }}</div>
+            {% if p.estado == 'Entregado' %}
+              <span class="inline-block mt-1 text-xs px-2 py-0.5 rounded-md bg-teal-500/10 text-teal-300 border border-teal-500/30">✓ entregado</span>
+            {% elif p.dias_restantes < 0 %}
+              <span class="inline-block mt-1 text-xs px-2 py-0.5 rounded-md bg-rose-500/15 text-rose-300 border border-rose-500/40">⏰ retrasado {{ -p.dias_restantes }} día{{ 's' if -p.dias_restantes != 1 }}</span>
+            {% elif p.dias_restantes == 0 %}
+              <span class="inline-block mt-1 text-xs px-2 py-0.5 rounded-md bg-orange-500/15 text-orange-300 border border-orange-500/40">🔥 vence hoy</span>
+            {% elif p.dias_restantes <= 2 %}
+              <span class="inline-block mt-1 text-xs px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-300 border border-amber-500/40">⚡ en {{ p.dias_restantes }} día{{ 's' if p.dias_restantes != 1 }}</span>
+            {% else %}
+              <span class="inline-block mt-1 text-xs px-2 py-0.5 rounded-md bg-base text-slate-400 border border-edge">en {{ p.dias_restantes }} días</span>
+            {% endif %}
+          {% else %}
+            <span class="text-slate-600 italic">Sin fecha</span>
+          {% endif %}
         </td>
         <td class="p-3">
           <form method="post" action="{{ url_for('cambiar_estado', pid=p.id) }}">
@@ -81,7 +100,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="9" class="p-4 text-center text-slate-500">Sin proyectos aún.</td></tr>
+      <tr><td colspan="10" class="p-4 text-center text-slate-500">Sin proyectos aún.</td></tr>
       {% endfor %}
     </tbody>
   </table>
