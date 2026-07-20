@@ -1,8 +1,9 @@
-# 🖨️ Taller 3D — Gestión y control financiero · v1.2
+# 🖨️ Taller 3D — Gestión y control financiero · v1.3
 
 Sistema local (Flask + SQLite) para controlar impresiones, costos, inventario y
 "la plata" de un emprendimiento de impresión 3D manejado por 2 socios. Con
-autenticación, diseño **Dark Premium** y un **Agente Asistente** de producción.
+autenticación, diseño **Dark Premium**, un **Agente Asistente** de producción y
+**carga inteligente de G-code / 3MF**.
 
 ---
 
@@ -97,6 +98,24 @@ con `ALTER TABLE` sin borrar datos ni relaciones).
   (`app.py`).
 - Tarjeta premium con glow cyan/indigo e íconos animados.
 
+### 6. 📄 Carga inteligente de G-code / 3MF
+- **Autocompletado**: al subir el `.gcode`/`.3mf` del slicer en el formulario de
+  proyecto, se leen los metadatos con **regex** (peso en gramos y tiempo de
+  impresión) y se rellenan Peso y Tiempo automáticamente vía AJAX, sin recargar.
+- **Multi-slicer**: soporta PrusaSlicer / OrcaSlicer / Bambu Studio /
+  SuperSlicer (`.gcode`) y `.3mf` (ZIP con configs/XML internos), incluyendo
+  suma de varios filamentos y formatos de tiempo `Xh Ym Zs`, `TIME:` (Cura) y
+  `prediction` (segundos).
+- **Almacenamiento local**: el archivo se guarda en `instance/gcodes/` con un
+  nombre **UUID** (evita colisiones) y se registra en `Proyecto.gcode_filename`.
+- **Descarga integrada**: botón ⬇ cyan junto al nombre en la tabla y en la vista
+  de edición (solo si el proyecto tiene archivo).
+- **Reemplazo en edición**: subir un archivo nuevo reparsea peso/tiempo, borra el
+  anterior del disco y guarda el nuevo; si no se sube nada, el archivo actual se
+  conserva intacto.
+- **Sin huérfanos**: al eliminar un proyecto se borra también su archivo físico.
+- Límite de subida: 128 MB (`MAX_CONTENT_LENGTH`).
+
 ---
 
 ## 📁 Estructura
@@ -110,7 +129,8 @@ inventario/
 ├── requirements.txt       # Flask, Flask-SQLAlchemy, Flask-Login, Flask-Bcrypt
 ├── README.md
 ├── instance/
-│   └── taller3d.db        # BD SQLite (se genera automáticamente)
+│   ├── taller3d.db        # BD SQLite (se genera automáticamente)
+│   └── gcodes/            # Archivos G-code/3MF subidos (nombre UUID)
 └── templates/
     ├── base.html          # Layout, nav con saludo/logout y badge de alertas
     ├── login.html         # Pantalla de inicio de sesión (Dark Premium)
@@ -131,8 +151,8 @@ inventario/
 ## 🛠️ Notas técnicas
 
 - **Migraciones**: `migrar_esquema()` y `migrar_y_sembrar_usuarios()` corren en
-  cada arranque; añaden columnas nuevas (`stock_minimo`, `fecha_entrega`, auth)
-  de forma idempotente y sin perder datos.
+  cada arranque; añaden columnas nuevas (`stock_minimo`, `fecha_entrega`,
+  `gcode_filename`, auth) de forma idempotente y sin perder datos.
 - **Estilo**: Tailwind CSS por CDN con paleta dark propia (`#090d16` fondo,
   `#151c2c` tarjetas, acentos teal/cyan). Sin build de Node/npm.
 - **`instance/`, `venv/`, `*.db` y `.claude/`** están en `.gitignore`.
