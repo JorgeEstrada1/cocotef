@@ -198,6 +198,15 @@ def calcular_balance(anio=None, mes=None):
 # --------------------------------------------------------------------------
 def registrar_rutas(app):
 
+    # ---------- Contexto global (disponible en TODAS las plantillas) ----------
+    @app.context_processor
+    def inyectar_alertas_stock():
+        """Cuenta filamentos bajo stock mínimo para el badge de la nav."""
+        if not current_user.is_authenticated:
+            return {"conteo_alertas": 0}
+        conteo = sum(1 for f in Filamento.query.all() if f.bajo_stock)
+        return {"conteo_alertas": conteo}
+
     # ---------- Autenticación ----------
     @app.route("/login", methods=["GET", "POST"])
     def login():

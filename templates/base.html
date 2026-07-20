@@ -44,7 +44,16 @@
       {% set item = "px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-cardh hover:text-teal-300 transition" %}
       <a href="{{ url_for('dashboard') }}" class="{{ item }}">Panel</a>
       <a href="{{ url_for('proyectos') }}" class="{{ item }}">Proyectos</a>
-      <a href="{{ url_for('filamentos') }}" class="{{ item }}">Filamentos</a>
+      <a href="{{ url_for('filamentos') }}" class="{{ item }} relative">
+        Filamentos
+        {% if conteo_alertas > 0 %}
+        <span class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center
+                     text-[11px] font-bold text-white rounded-full bg-amber-500 ring-2 ring-card
+                     shadow-lg shadow-amber-500/40 animate-pulse">
+          {{ conteo_alertas }}
+        </span>
+        {% endif %}
+      </a>
       <a href="{{ url_for('ventas') }}" class="{{ item }}">Ventas</a>
       <a href="{{ url_for('gastos') }}" class="{{ item }}">Gastos</a>
       <a href="{{ url_for('balance') }}"
