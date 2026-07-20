@@ -33,6 +33,11 @@
       <input name="tiempo_estimado_h" type="number" step="0.1" value="{{ p.tiempo_estimado_h }}" class="{{ inp }}">
     </label>
     <label class="block">
+      <span class="text-sm text-slate-400">Fecha de entrega</span>
+      <input name="fecha_entrega" type="date"
+             value="{{ p.fecha_entrega.isoformat() if p.fecha_entrega else '' }}" class="{{ inp }}">
+    </label>
+    <label class="block">
       <span class="text-sm text-slate-400">Filamento</span>
       <select name="filamento_id" class="{{ inp }}">
         <option value="">— Ninguno —</option>

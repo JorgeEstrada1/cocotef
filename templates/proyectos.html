@@ -20,6 +20,9 @@
       <option value="">— Filamento —</option>
       {% for f in filamentos %}<option value="{{ f.id }}">{{ f.etiqueta }}</option>{% endfor %}
     </select>
+    <label class="text-xs text-slate-500 flex flex-col gap-1">Fecha de entrega
+      <input name="fecha_entrega" type="date" class="{{ inp }}">
+    </label>
     <button class="md:col-span-3 bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-900 font-semibold rounded-lg py-2 hover:opacity-90 transition">
       Guardar proyecto
     </button>

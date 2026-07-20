@@ -26,6 +26,20 @@ SOCIOS_SEED = [
     {"username": "tefi",  "nombre": "Tefi",  "color": "#22d3ee", "password": "tefi123"},
 ]
 
+# Sugerencias del "Agente" (Brújula de Tendencias). Locales, sin APIs externas.
+TENDENCIAS_VIRALES = [
+    {"icono": "🗂️", "titulo": "Organizadores de escritorio modulares para setups tech",
+     "tip": "Idea de Reel: arma el organizador pieza por pieza en un timelapse y cierra con el setup ordenado."},
+    {"icono": "🦴", "titulo": "Modelos anatómicos y maquetas mecánicas para estudiantes",
+     "tip": "Idea de Reel: muestra el modelo girando 360° y explica una curiosidad en 15 segundos."},
+    {"icono": "📷", "titulo": "Soportes de cámara y gadgets útiles (Pocket 3, GoPro, celular)",
+     "tip": "Idea de Reel: graba un timelapse de la impresión con tu Pocket 3 y muestra el accesorio en uso."},
+    {"icono": "🎮", "titulo": "Soportes de control y auriculares para gamers",
+     "tip": "Idea de Reel: 'Antes y después' del escritorio gamer con el soporte instalado."},
+    {"icono": "🪴", "titulo": "Materas geométricas y decoración minimalista",
+     "tip": "Idea de Reel: satisfying del relleno de tierra + plantita, con música trend."},
+]
+
 bcrypt = Bcrypt()
 login_manager = LoginManager()
 login_manager.login_view = "login"
@@ -64,6 +78,10 @@ def migrar_esquema():
         if "stock_minimo" not in fil_cols:
             conn.execute(text(
                 "ALTER TABLE filamentos ADD COLUMN stock_minimo FLOAT DEFAULT 200"))
+
+        proy_cols = [c["name"] for c in inspect(db.engine).get_columns("proyectos")]
+        if "fecha_entrega" not in proy_cols:
+            conn.execute(text("ALTER TABLE proyectos ADD COLUMN fecha_entrega DATE"))
 
 
 def migrar_y_sembrar_usuarios():
@@ -193,6 +211,17 @@ def calcular_balance(anio=None, mes=None):
     }
 
 
+def obtener_proyectos_urgentes():
+    """
+    Proyectos NO entregados que vencen en <= 2 días o ya están retrasados,
+    ordenados por urgencia (más retrasado / próximo primero).
+    """
+    candidatos = Proyecto.query.filter(Proyecto.estado != "Entregado").all()
+    urgentes = [p for p in candidatos if p.es_urgente]
+    urgentes.sort(key=lambda p: p.dias_restantes)
+    return urgentes
+
+
 # --------------------------------------------------------------------------
 #  Rutas
 # --------------------------------------------------------------------------
@@ -234,6 +263,12 @@ def registrar_rutas(app):
     def _parse_fecha(valor):
         if not valor:
             return date.today()
+        return datetime.strptime(valor, "%Y-%m-%d").date()
+
+    def _parse_fecha_opt(valor):
+        """Fecha opcional: None si el campo viene vacío."""
+        if not valor:
+            return None
         return datetime.strptime(valor, "%Y-%m-%d").date()
 
     def _filtrar_mes(query, columna_fecha, per):
@@ -278,9 +313,12 @@ def registrar_rutas(app):
         }
         # Alertas de stock crítico de filamento
         alertas_stock = [f for f in Filamento.query.all() if f.bajo_stock]
+        # Agente Asistente: pedidos urgentes + tendencias
+        urgentes = obtener_proyectos_urgentes()
         return render_template("dashboard.html", bal=bal, per=per,
                                proyectos=proyectos, conteo_estados=conteo_estados,
-                               alertas_stock=alertas_stock)
+                               alertas_stock=alertas_stock,
+                               urgentes=urgentes, tendencias=TENDENCIAS_VIRALES)
 
     # ---------- Proyectos / Impresiones ----------
     @app.route("/proyectos")
@@ -303,6 +341,7 @@ def registrar_rutas(app):
             peso_g=float(f.get("peso_g") or 0),
             tiempo_estimado_h=float(f.get("tiempo_estimado_h") or 0),
             filamento_id=int(f["filamento_id"]) if f.get("filamento_id") else None,
+            fecha_entrega=_parse_fecha_opt(f.get("fecha_entrega")),
             usuario_id=current_user.id,  # registra automáticamente al usuario autenticado
         )
         if not p.nombre:
@@ -335,6 +374,7 @@ def registrar_rutas(app):
             p.peso_g = float(f.get("peso_g") or 0)
             p.tiempo_estimado_h = float(f.get("tiempo_estimado_h") or 0)
             p.filamento_id = int(f["filamento_id"]) if f.get("filamento_id") else None
+            p.fecha_entrega = _parse_fecha_opt(f.get("fecha_entrega"))
             p.usuario_id = int(f["usuario_id"]) if f.get("usuario_id") else None
             db.session.commit()  # el costo se recalcula solo (propiedad derivada)
             flash("Proyecto actualizado.", "ok")

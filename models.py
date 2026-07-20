@@ -87,6 +87,7 @@ class Proyecto(db.Model):
     peso_g = db.Column(db.Float, default=0.0)                 # gramos de la pieza
     tiempo_estimado_h = db.Column(db.Float, default=0.0)      # horas estimadas
     filamento_id = db.Column(db.Integer, db.ForeignKey("filamentos.id"))
+    fecha_entrega = db.Column(db.Date)                        # fecha comprometida de entrega
 
     usuario_id = db.Column(db.Integer, db.ForeignKey("usuarios.id"))
     creado = db.Column(db.DateTime, default=datetime.utcnow)
@@ -97,6 +98,20 @@ class Proyecto(db.Model):
         if not self.filamento:
             return 0.0
         return round(self.peso_g * self.filamento.precio_por_gramo, 2)
+
+    @property
+    def dias_restantes(self):
+        """Días hasta la entrega (negativo = retrasado). None si no tiene fecha."""
+        if not self.fecha_entrega:
+            return None
+        return (self.fecha_entrega - date.today()).days
+
+    @property
+    def es_urgente(self):
+        """Vence en <= 2 días o ya está retrasado, y aún no se ha entregado."""
+        if self.estado == "Entregado" or self.dias_restantes is None:
+            return False
+        return self.dias_restantes <= 2
 
     def __repr__(self):
         return f"<Proyecto {self.nombre} ({self.estado})>"

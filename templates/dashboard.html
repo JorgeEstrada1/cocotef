@@ -28,6 +28,78 @@
 </div>
 {% endif %}
 
+<!-- ===================== AGENTE ASISTENTE ===================== -->
+<div class="relative mb-6 group">
+  <!-- Glow cyan/indigo -->
+  <div class="absolute -inset-0.5 bg-gradient-to-r from-cyan-500/25 via-indigo-500/20 to-cyan-500/25
+              blur-xl rounded-2xl opacity-70 group-hover:opacity-100 transition duration-500"></div>
+
+  <div class="relative bg-card border border-cyan-500/25 rounded-2xl shadow-xl p-5">
+    <!-- Encabezado del agente -->
+    <div class="flex items-center gap-3 mb-4">
+      <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-cyan-500 to-indigo-600 flex items-center
+                  justify-center text-2xl shadow-lg shadow-cyan-500/30 animate-pulse">🧠</div>
+      <div>
+        <h2 class="font-bold text-slate-100 leading-tight">Agente Asistente de Producción</h2>
+        <p class="text-xs text-cyan-300/80">Análisis local · sin conexión a APIs externas</p>
+      </div>
+      <span class="ml-auto text-xs px-2 py-1 rounded-full bg-cyan-500/10 text-cyan-300 border border-cyan-500/30">
+        ● en línea
+      </span>
+    </div>
+
+    <!-- 1) Alerta de vencimientos -->
+    {% if urgentes %}
+    <div class="rounded-xl border border-amber-500/40 bg-gradient-to-r from-amber-950/40 to-orange-950/30 p-4 mb-4">
+      <p class="text-amber-200 text-sm">
+        🤖 <b class="text-amber-300">Jorge / Tefi:</b> Tienen
+        <b class="text-orange-300">{{ urgentes | length }}</b>
+        pedido{{ 's' if urgentes | length != 1 }} urgente{{ 's' if urgentes | length != 1 }} por vencer esta semana.
+        Diseños críticos:
+        <span class="text-orange-200">{{ urgentes | map(attribute='nombre') | join(', ') }}</span>.
+      </p>
+      <div class="flex flex-wrap gap-2 mt-3">
+        {% for p in urgentes %}
+        <span class="text-xs px-2 py-1 rounded-md bg-base border border-amber-500/30 text-amber-200">
+          {{ p.nombre }} —
+          {% if p.dias_restantes < 0 %}⏰ retrasado {{ -p.dias_restantes }} día{{ 's' if -p.dias_restantes != 1 }}
+          {% elif p.dias_restantes == 0 %}🔥 vence hoy
+          {% else %}⚡ en {{ p.dias_restantes }} día{{ 's' if p.dias_restantes != 1 }}{% endif %}
+        </span>
+        {% endfor %}
+      </div>
+    </div>
+    {% else %}
+    <div class="rounded-xl border border-teal-500/30 bg-teal-500/5 p-4 mb-4">
+      <p class="text-teal-200 text-sm">🤖 <b class="text-teal-300">Producción al día.</b> No hay pedidos urgentes por vencer.</p>
+    </div>
+    {% endif %}
+
+    <!-- 2) Brújula de tendencias -->
+    <div>
+      <h3 class="font-semibold text-slate-200 mb-3 flex items-center gap-2">
+        <span class="text-lg animate-[spin_6s_linear_infinite] inline-block">🧭</span>
+        Brújula de Tendencias — Ideas Virales
+      </h3>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        {% for t in tendencias %}
+        <div class="bg-base border border-edge rounded-xl p-3 hover:border-cyan-500/50 hover:-translate-y-0.5
+                    transition duration-200 cursor-default">
+          <div class="flex items-start gap-2">
+            <span class="text-xl shrink-0">{{ t.icono }}</span>
+            <div>
+              <p class="text-sm font-medium text-slate-200 leading-snug">{{ t.titulo }}</p>
+              <p class="text-xs text-cyan-300/70 mt-1">💡 {{ t.tip }}</p>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+<!-- =================== FIN AGENTE ASISTENTE =================== -->
+
 {% set endpoint = 'dashboard' %}
 {% include "_selector_mes.html" %}
 
