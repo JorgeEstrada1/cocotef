@@ -1,9 +1,9 @@
-# 🖨️ Taller 3D — Gestión y control financiero · v1.3
+# 🖨️ Taller 3D — Gestión y control financiero · v1.5
 
 Sistema local (Flask + SQLite) para controlar impresiones, costos, inventario y
 "la plata" de un emprendimiento de impresión 3D manejado por 2 socios. Con
-autenticación, diseño **Dark Premium**, un **Agente Asistente** de producción y
-**carga inteligente de G-code / 3MF**.
+autenticación, diseño **Dark Premium**, un **Agente Asistente** de producción,
+**carga inteligente de G-code / 3MF** y control financiero en **Bolivianos (Bs.)**.
 
 ---
 
@@ -49,43 +49,84 @@ siembran automáticamente dos usuarios:
 > luego `instance/taller3d.db` para re-sembrar), o generando un nuevo hash con
 > `bcrypt.generate_password_hash("nueva").decode()`.
 
-Todas las rutas requieren sesión iniciada. Cada venta, gasto o proyecto se asocia
-automáticamente al usuario autenticado que lo registra. La barra superior saluda
-al usuario ("Hola, Jorge") e incluye botón de cerrar sesión.
+Todas las rutas requieren sesión iniciada. Cada proyecto, gasto o inversión se
+asocia automáticamente al usuario autenticado que lo registra. La barra superior
+saluda al usuario ("Hola, Jorge") e incluye botón de cerrar sesión.
 
 La BD SQLite se crea sola en `instance/taller3d.db`. Si ya existía una BD de una
 versión anterior, **al arrancar se migra automáticamente** (añade columnas nuevas
-con `ALTER TABLE` sin borrar datos ni relaciones).
+con `ALTER TABLE` y crea tablas nuevas sin borrar datos ni relaciones).
+
+---
+
+## 💱 Novedades de la v1.5
+
+### A. Moneda global en Bolivianos (Bs.)
+Toda la aplicación muestra los montos en **Bs.** en lugar del signo `$`:
+Dashboard, Proyectos / Ventas, Gastos, Balance, Deudas e Inversiones, la
+**gráfica** de Chart.js (tooltips y eje Y) y las **exportaciones CSV**.
+
+### B. Balance: Liquidación / Saldar Cuentas entre socios
+- En el Balance mensual, un botón **"🤝 Saldar Cuentas / Registrar Pago a Socio"**
+  abre un **modal** que confirma quién le paga a quién y el **monto exacto** del
+  ajuste calculado por la app.
+- Al confirmar se registra un movimiento de **transferencia entre socios**
+  (modelo `Liquidacion`) que deja el ajuste del mes en **Bs. 0** (a mano).
+- El monto se **recalcula en el servidor** (no se confía en el cliente).
+- **Regla clave:** la liquidación solo reacomoda el "en mano" de cada socio;
+  **no** afecta ingresos, gastos ni la ganancia neta / gráfica financiera.
+
+### C. Módulo independiente de Deudas e Inversiones de Capital
+- Nueva pestaña **"Deudas e Inversiones"** en la barra de navegación.
+- Registra compras de **activo fijo / maquinaria** (ej. "Compra Bambu Lab A2")
+  con `monto_total`, `aporte_jorge`, `aporte_tefi`, `deuda_pendiente`, `estado`
+  (Pendiente / Saldada) y `fecha` (modelo `Inversion`).
+- Calcula la **deuda para quedar 50/50** en el activo (mitad de la diferencia de
+  aportes), muestra **deudor → acreedor** y el progreso de abonos.
+- Botón **"Abonar"** por fila para reducir el saldo hasta liquidarlo; al llegar a
+  Bs. 0 la inversión pasa a **"Saldada"** automáticamente.
+- **Regla clave:** es **100% independiente** de los ingresos, gastos operativos y
+  ganancias. No se mezcla con la caja chica ni con la gráfica financiera mensual.
 
 ---
 
 ## 🧩 Funcionalidades
 
-### 1. Control de impresiones y costos
-- Piezas con cliente y estado (Diseñando → Imprimiendo → Terminado → Entregado).
+### 1. Proyectos / Ventas (módulo unificado)
+- Piezas con cliente y **estado**:
+  `Diseñando → Por imprimir → Imprimiendo → Terminado → Entregado`.
 - Datos técnicos: peso (g), tiempo estimado (h), filamento (tipo/color).
 - Costo de filamento por pieza automático = `peso × (precio_rollo / peso_rollo)`.
-- **Fecha de entrega** por proyecto, con columna y badges de urgencia en la tabla
-  (⏰ retrasado · 🔥 vence hoy · ⚡ en N días · ✓ entregado · "Sin fecha").
+- **Cobranza integrada** en el proyecto: `precio_total`, `adelanto` y
+  `saldo_pendiente` (= precio − adelanto), con badge **✓ Pagado** cuando el saldo
+  llega a Bs. 0.
+- **Fecha de entrega** por proyecto, con badges de urgencia (⏰ retrasado ·
+  🔥 vence hoy · ⚡ en N días · ✓ entregado).
+- Tabla "de un vistazo": Nombre, Cliente, Estado (dropdown), Precio total,
+  Adelanto, Saldo pendiente, quién registró y acciones (Editar · G-Code · Eliminar).
 
 ### 2. Control financiero
-- Ventas (monto, método de pago, fecha, proyecto opcional).
 - Gastos por categoría (filamento, cajas, envíos, luz, etc.).
-- Ganancia neta = Ingresos − Gastos.
-- **Filtro por mes/año** en Dashboard, Balance, Ventas y Gastos (por defecto el
-  mes actual, para no mezclar cuentas).
-- **Exportación CSV** (compatible con Excel, BOM UTF-8) de ventas y gastos,
-  respetando el mes seleccionado.
+- **Regla contable de ingresos:** el precio de un pedido **solo se reconoce** como
+  ingreso cuando el estado es **Entregado** o su **saldo pendiente es Bs. 0**. Los
+  adelantos / pagos parciales **no** suman a Ingresos Totales ni a la gráfica hasta
+  que el pedido esté cancelado por completo.
+- Ganancia neta = Ingresos reconocidos − Gastos.
+- **Filtro por mes/año** en Dashboard, Balance y Gastos (por defecto el mes actual).
+- **Exportación CSV** (compatible con Excel, BOM UTF-8) con montos en Bs.
 - **Gráfico** Ingresos vs. Gastos (Chart.js) en el Dashboard.
 
-### 3. Multiusuario (2 socios)
-- Panel de balance: cuánto cobró y aportó cada uno, cuánto le corresponde (50%)
-  y el ajuste necesario para quedar parejos.
+### 3. Multiusuario (2 socios) y reparto
+- Panel de balance: cuánto cobró (pedidos entregados/saldados) y aportó cada uno,
+  cuánto le corresponde (50%) y el ajuste para quedar parejos.
+- **Liquidación** entre socios para dejar el ajuste del mes en Bs. 0 (ver
+  Novedades v1.5 · B).
 
 ### 4. 📉 Alertas de stock crítico (inventario)
 - Campo `stock_minimo` por filamento (default 200 g), editable inline.
 - Cálculo de gramos restantes = peso del rollo − consumo de proyectos impresos
-  (Imprimiendo / Terminado / Entregado).
+  (Imprimiendo / Terminado / Entregado). El estado **"Por imprimir" no consume**
+  (la pieza está en cola pero aún no se imprimió).
 - Tarjeta de alerta llamativa (ámbar/naranja) en el Dashboard y **badge de
   notificación global** junto a "Filamentos" en la barra de navegación.
 
@@ -123,8 +164,8 @@ con `ALTER TABLE` sin borrar datos ni relaciones).
 ```
 inventario/
 ├── arrancar_sistema.bat   # Lanzador de un clic (venv + navegador + Flask)
-├── app.py                 # App Flask: rutas, auth, balance, alertas, agente
-├── models.py              # Modelos SQLite (User, Filamento, Proyecto, Venta, Gasto)
+├── app.py                 # App Flask: rutas, auth, balance, liquidación, inversiones
+├── models.py              # Modelos SQLite (User, Filamento, Proyecto, Venta, Gasto, Liquidacion, Inversion)
 ├── config.py              # Configuración (ruta BD, clave secreta)
 ├── requirements.txt       # Flask, Flask-SQLAlchemy, Flask-Login, Flask-Bcrypt
 ├── README.md
@@ -135,14 +176,15 @@ inventario/
     ├── base.html          # Layout, nav con saludo/logout y badge de alertas
     ├── login.html         # Pantalla de inicio de sesión (Dark Premium)
     ├── dashboard.html     # Panel: agente, alertas, gráfico, balance, KPIs
-    ├── proyectos.html     # Piezas, estados, costo, fecha de entrega + badges
+    ├── proyectos.html     # Proyectos / Ventas unificado (cobranza + estados + G-code)
     ├── editar_proyecto.html
     ├── filamentos.html    # Rollos, precio/gramo, stock mínimo y estado
-    ├── ventas.html
+    ├── ventas.html        # Legacy de ventas (fuera de la nav; datos preservados)
     ├── editar_venta.html
     ├── gastos.html
     ├── editar_gasto.html
-    ├── balance.html       # Reparto 50/50 y ajuste entre socios
+    ├── inversiones.html   # Deudas e Inversiones de Capital (módulo independiente)
+    ├── balance.html       # Reparto 50/50, ajuste y liquidación entre socios
     └── _selector_mes.html # Selector de mes reutilizable
 ```
 
@@ -152,7 +194,12 @@ inventario/
 
 - **Migraciones**: `migrar_esquema()` y `migrar_y_sembrar_usuarios()` corren en
   cada arranque; añaden columnas nuevas (`stock_minimo`, `fecha_entrega`,
-  `gcode_filename`, auth) de forma idempotente y sin perder datos.
+  `gcode_filename`, `precio_total`, `adelanto`, auth) de forma idempotente y sin
+  perder datos. Las tablas nuevas (`liquidaciones`, `inversiones`) las crea
+  `db.create_all()` sin afectar las existentes.
+- **Independencia contable**: el módulo de Deudas e Inversiones y las
+  liquidaciones entre socios se calculan aparte de los ingresos/gastos operativos;
+  no alteran la ganancia neta ni la gráfica financiera mensual.
 - **Estilo**: Tailwind CSS por CDN con paleta dark propia (`#090d16` fondo,
   `#151c2c` tarjetas, acentos teal/cyan). Sin build de Node/npm.
 - **`instance/`, `venv/`, `*.db` y `.claude/`** están en `.gitignore`.
