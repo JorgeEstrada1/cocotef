@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#090d16">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Taller 3D">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/static/icon.svg">
+  <title>Taller 3D · Producción</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: { extend: {
+        colors: { base:"#090d16", card:"#151c2c", cardh:"#1b2338", edge:"#232c42" },
+        fontFamily: { sans:["Inter","system-ui","sans-serif"] },
+      }},
+    };
+  </script>
+  <style>
+    body { background-color:#090d16; -webkit-tap-highlight-color: transparent; }
+    ::-webkit-scrollbar { width:0; height:0; }
+    input, select { color-scheme: dark; }
+    @keyframes pulseRed { 0%,100%{ box-shadow:0 0 0 0 rgba(244,63,94,.5);} 50%{ box-shadow:0 0 0 6px rgba(244,63,94,0);} }
+    .alerta-roja { animation: pulseRed 1.2s infinite; }
+    .fade-out { transition: opacity .4s ease, transform .4s ease; opacity:0; transform: scale(.96); }
+  </style>
+</head>
+<body class="bg-base text-slate-200 font-sans antialiased min-h-screen pb-24 select-none">
+
+{% set estado_badge = {
+  "Diseñando":"bg-slate-500/15 text-slate-300 border-slate-500/30",
+  "Por imprimir":"bg-indigo-500/15 text-indigo-300 border-indigo-500/30",
+  "Imprimiendo":"bg-cyan-500/15 text-cyan-300 border-cyan-500/30",
+  "Terminado":"bg-teal-500/15 text-teal-300 border-teal-500/30",
+  "Entregado":"bg-green-500/15 text-green-300 border-green-500/30"
+} %}
+
+<!-- Header -->
+<header class="sticky top-0 z-20 bg-card/90 backdrop-blur border-b border-edge">
+  <div class="px-4 py-3 flex items-center gap-2" style="padding-top:calc(env(safe-area-inset-top) + .75rem)">
+    <span class="text-teal-400 text-xl">🖨️</span>
+    <div class="leading-tight">
+      <p class="font-bold bg-gradient-to-r from-teal-400 to-cyan-400 bg-clip-text text-transparent">Taller 3D · Producción</p>
+      <p class="text-[11px] text-slate-500">Hola, <b class="text-teal-300">{{ current_user.nombre }}</b></p>
+    </div>
+    <div class="ml-auto flex items-center gap-1.5">
+      <a href="{{ url_for('dashboard', desktop=1) }}" title="Ver panel completo"
+         class="px-2.5 py-1.5 rounded-lg text-xs bg-base border border-edge text-slate-300 active:bg-cardh">🖥️</a>
+      <a href="{{ url_for('logout') }}" title="Salir"
+         class="px-2.5 py-1.5 rounded-lg text-xs bg-rose-500/10 text-rose-300 border border-rose-500/30 active:bg-rose-500/20">⏻</a>
+    </div>
+  </div>
+</header>
+
+{% with mensajes = get_flashed_messages(with_categories=true) %}
+  {% for cat, msg in mensajes %}
+  <div class="mx-4 mt-3 px-3 py-2 rounded-lg text-sm border
+       {{ 'bg-rose-500/10 text-rose-300 border-rose-500/30' if cat=='error' else 'bg-teal-500/10 text-teal-300 border-teal-500/30' }}">
+    {{ msg }}
+  </div>
+  {% endfor %}
+{% endwith %}
+
+<!-- ============ SECCIÓN: PEDIDOS ============ -->
+<section id="sec-pedidos" class="px-4 pt-4 space-y-4">
+  <div class="flex items-center justify-between">
+    <h1 class="text-lg font-bold text-slate-100">📦 Pedidos en producción</h1>
+    <span class="text-xs px-2 py-0.5 rounded-full bg-cardh border border-edge text-slate-400">{{ proyectos|length }}</span>
+  </div>
+
+  {% for p in proyectos %}
+  <article id="card-{{ p.id }}" data-pid="{{ p.id }}"
+           class="bg-card border border-edge rounded-2xl shadow-lg overflow-hidden">
+    <div class="flex gap-3 p-3">
+      <!-- Foto principal -->
+      {% if p.imagen_filename %}
+      <img src="{{ url_for('imagen_proyecto', filename=p.imagen_filename) }}" alt="{{ p.nombre }}"
+           class="w-20 h-20 rounded-xl object-cover border border-edge shrink-0">
+      {% else %}
+      <div class="w-20 h-20 rounded-xl bg-base border border-dashed border-edge shrink-0
+                  flex items-center justify-center text-2xl text-slate-600">🖼️</div>
+      {% endif %}
+
+      <div class="min-w-0 flex-1">
+        <div class="flex items-start gap-2">
+          <h2 class="font-semibold text-slate-100 truncate flex-1">{{ p.nombre }}</h2>
+          <span data-badge class="text-[11px] px-2 py-0.5 rounded-md border whitespace-nowrap {{ estado_badge.get(p.estado, estado_badge['Diseñando']) }}">{{ p.estado }}</span>
+        </div>
+        <p class="text-xs text-slate-400 truncate mt-0.5">👤 {{ p.cliente or 'Sin cliente' }}</p>
+
+        <!-- Timer en vivo -->
+        {% if p.fecha_entrega %}
+        <div data-timer data-deadline="{{ p.fecha_entrega.isoformat() }}T23:59:59"
+             class="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border">
+          <span data-icon>⏳</span><span data-remaining>—</span>
+        </div>
+        {% else %}
+        <div class="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs
+                    bg-base border border-edge text-slate-500">📅 Sin fecha de entrega</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Acciones rápidas -->
+    <div class="border-t border-edge bg-base/40 px-3 py-2 flex items-center gap-2">
+      <button onclick="cambiarEstado({{ p.id }}, 'Terminado', this)"
+              class="flex-1 py-2 rounded-lg text-sm font-semibold text-slate-900
+                     bg-gradient-to-r from-teal-500 to-cyan-500 active:opacity-80 transition">✅ Listo</button>
+      <button onclick="cambiarEstado({{ p.id }}, 'Entregado', this)"
+              class="flex-1 py-2 rounded-lg text-sm font-semibold text-slate-900
+                     bg-gradient-to-r from-green-500 to-emerald-500 active:opacity-80 transition">📦 Entregado</button>
+      <select onchange="cambiarEstado({{ p.id }}, this.value, this)"
+              class="py-2 px-2 rounded-lg text-xs bg-card border border-edge text-slate-300 max-w-[7.5rem]">
+        <option value="" disabled selected>Más…</option>
+        {% for e in estados %}<option value="{{ e }}">{{ e }}</option>{% endfor %}
+      </select>
+    </div>
+  </article>
+  {% else %}
+  <div class="bg-card border border-dashed border-edge rounded-2xl p-8 text-center text-slate-500">
+    🎉 No hay pedidos pendientes en producción.
+  </div>
+  {% endfor %}
+</section>
+
+<!-- ============ SECCIÓN: FILAMENTOS ============ -->
+<section id="sec-filamentos" class="hidden px-4 pt-4 space-y-3">
+  <h1 class="text-lg font-bold text-slate-100">🧵 Stock de Filamentos</h1>
+  {% for f in filamentos %}
+  {% set restante = f.gramos_restantes if f.gramos_restantes > 0 else 0 %}
+  {% set pct = ((restante / f.peso_rollo_g * 100) if f.peso_rollo_g else 0) %}
+  <article class="bg-card border rounded-2xl p-3 {{ 'border-amber-500/40' if f.bajo_stock else 'border-edge' }}">
+    <div class="flex items-center gap-3">
+      <span class="w-9 h-9 rounded-full border-2 border-white/10 shrink-0 shadow-inner"
+            style="background: {{ f.color | color_hex }}"></span>
+      <div class="min-w-0 flex-1">
+        <div class="flex items-center gap-2">
+          <p class="font-semibold text-slate-100 truncate">{{ f.tipo }} · {{ f.color }}</p>
+          {% if f.bajo_stock %}
+          <span class="ml-auto text-[11px] px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-300 border border-amber-500/40 whitespace-nowrap">⚠️ Bajo</span>
+          {% else %}
+          <span class="ml-auto text-[11px] px-2 py-0.5 rounded-md bg-teal-500/10 text-teal-300 border border-teal-500/30 whitespace-nowrap">OK</span>
+          {% endif %}
+        </div>
+        <div class="mt-1 h-2 rounded-full bg-base overflow-hidden">
+          <div class="h-full rounded-full {{ 'bg-amber-400' if f.bajo_stock else 'bg-gradient-to-r from-teal-500 to-cyan-500' }}"
+               style="width: {{ pct if pct < 100 else 100 }}%"></div>
+        </div>
+        <p class="mt-1 text-xs text-slate-400">
+          <b class="{{ 'text-amber-300' if f.bajo_stock else 'text-slate-200' }}">{{ restante | round | int }} g</b>
+          <span class="text-slate-600">/ {{ f.peso_rollo_g | round | int }} g</span>
+          · ≈ <b class="text-slate-300">{{ (restante / f.peso_rollo_g) | round(1) if f.peso_rollo_g else 0 }}</b> rollo(s)
+        </p>
+      </div>
+    </div>
+  </article>
+  {% else %}
+  <div class="bg-card border border-dashed border-edge rounded-2xl p-8 text-center text-slate-500">
+    Sin filamentos registrados.
+  </div>
+  {% endfor %}
+</section>
+
+<!-- Toast -->
+<div id="toast" class="fixed left-1/2 -translate-x-1/2 bottom-24 z-40 hidden">
+  <div class="px-4 py-2 rounded-xl bg-cardh border border-teal-500/40 text-teal-200 text-sm shadow-2xl"></div>
+</div>
+
+<!-- ============ TAB BAR INFERIOR ============ -->
+<nav class="fixed bottom-0 inset-x-0 z-30 bg-card/95 backdrop-blur border-t border-edge"
+     style="padding-bottom: env(safe-area-inset-bottom)">
+  <div class="grid grid-cols-2">
+    <button id="tab-pedidos" onclick="mostrar('pedidos')"
+            class="py-3 flex flex-col items-center gap-0.5 text-teal-300">
+      <span class="text-lg">📦</span><span class="text-[11px] font-medium">Pedidos</span>
+    </button>
+    <button id="tab-filamentos" onclick="mostrar('filamentos')"
+            class="py-3 flex flex-col items-center gap-0.5 text-slate-500">
+      <span class="text-lg">🧵</span><span class="text-[11px] font-medium">Filamentos</span>
+    </button>
+  </div>
+</nav>
+
+<script>
+const ESTADO_BADGE = {
+  "Diseñando":"bg-slate-500/15 text-slate-300 border-slate-500/30",
+  "Por imprimir":"bg-indigo-500/15 text-indigo-300 border-indigo-500/30",
+  "Imprimiendo":"bg-cyan-500/15 text-cyan-300 border-cyan-500/30",
+  "Terminado":"bg-teal-500/15 text-teal-300 border-teal-500/30",
+  "Entregado":"bg-green-500/15 text-green-300 border-green-500/30",
+};
+const BADGE_BASE = "text-[11px] px-2 py-0.5 rounded-md border whitespace-nowrap ";
+
+// ---- Navegación entre pestañas (sin recargar) ----
+function mostrar(sec) {
+  const esPed = sec === "pedidos";
+  document.getElementById("sec-pedidos").classList.toggle("hidden", !esPed);
+  document.getElementById("sec-filamentos").classList.toggle("hidden", esPed);
+  document.getElementById("tab-pedidos").className =
+    "py-3 flex flex-col items-center gap-0.5 " + (esPed ? "text-teal-300" : "text-slate-500");
+  document.getElementById("tab-filamentos").className =
+    "py-3 flex flex-col items-center gap-0.5 " + (esPed ? "text-slate-500" : "text-teal-300");
+  window.scrollTo({ top: 0 });
+}
+
+// ---- Toast ----
+let toastT;
+function toast(msg, err) {
+  const box = document.querySelector("#toast > div");
+  box.textContent = msg;
+  box.className = "px-4 py-2 rounded-xl text-sm shadow-2xl border " +
+    (err ? "bg-cardh border-rose-500/40 text-rose-200" : "bg-cardh border-teal-500/40 text-teal-200");
+  const t = document.getElementById("toast");
+  t.classList.remove("hidden");
+  clearTimeout(toastT);
+  toastT = setTimeout(() => t.classList.add("hidden"), 2600);
+}
+
+// ---- Cambio de estado por AJAX ----
+async function cambiarEstado(pid, estado, btn) {
+  if (!estado) return;
+  if (btn) btn.disabled = true;
+  try {
+    const fd = new FormData();
+    fd.append("estado", estado);
+    const r = await fetch(`/mobile/proyecto/${pid}/estado`, { method:"POST", body: fd });
+    const data = await r.json();
+    if (!data.ok) { toast(data.error || "No se pudo actualizar.", true); return; }
+
+    const card = document.getElementById("card-" + pid);
+    const badge = card ? card.querySelector("[data-badge]") : null;
+    if (badge) { badge.textContent = data.estado; badge.className = BADGE_BASE + (ESTADO_BADGE[data.estado] || ""); }
+    toast(data.mensaje || "Actualizado ✔");
+
+    // Si sale de producción (Entregado), retiramos la tarjeta con animación.
+    if (card && !data.activo) {
+      card.classList.add("fade-out");
+      setTimeout(() => {
+        card.remove();
+        const cont = document.getElementById("sec-pedidos");
+        if (!cont.querySelector("article")) {
+          const vacio = document.createElement("div");
+          vacio.className = "bg-card border border-dashed border-edge rounded-2xl p-8 text-center text-slate-500";
+          vacio.textContent = "🎉 No hay pedidos pendientes en producción.";
+          cont.appendChild(vacio);
+        }
+      }, 420);
+    }
+  } catch (e) {
+    toast("Error de red.", true);
+  } finally {
+    if (btn) btn.disabled = false;
+    if (btn && btn.tagName === "SELECT") btn.selectedIndex = 0;
+  }
+}
+
+// ---- Timers en vivo (countdown) ----
+function pad(n){ return String(n).padStart(2,"0"); }
+function actualizarTimers() {
+  const ahora = Date.now();
+  document.querySelectorAll("[data-timer]").forEach((el) => {
+    const objetivo = new Date(el.dataset.deadline).getTime();
+    let diff = objetivo - ahora;
+    const rem = el.querySelector("[data-remaining]");
+    const icon = el.querySelector("[data-icon]");
+    let clases, txt, ic;
+    const H = 3600e3;
+
+    if (diff <= 0) {
+      const v = Math.abs(diff);
+      const d = Math.floor(v/86400e3), h = Math.floor(v%86400e3/H);
+      txt = "Vencido " + (d>0 ? d+"d " : "") + h + "h";
+      clases = "bg-rose-500/15 text-rose-300 border-rose-500/40 alerta-roja"; ic = "🔴";
+    } else {
+      const d = Math.floor(diff/86400e3), h = Math.floor(diff%86400e3/H),
+            m = Math.floor(diff%H/60e3), s = Math.floor(diff%60e3/1000);
+      txt = (d>0 ? d+"d " : "") + pad(h)+":"+pad(m)+":"+pad(s);
+      if (diff < 3*H) {                     // < 3 horas (rojo animado)
+        clases = "bg-rose-500/15 text-rose-300 border-rose-500/40 alerta-roja"; ic = "🔥";
+      } else if (diff < 12*H) {             // < 12 horas (naranja)
+        clases = "bg-orange-500/15 text-orange-300 border-orange-500/40"; ic = "⚠️";
+      } else {                               // tiempo de sobra (verde)
+        clases = "bg-green-500/15 text-green-300 border-green-500/40"; ic = "⏳";
+      }
+    }
+    rem.textContent = txt;
+    if (icon) icon.textContent = ic;
+    el.className = "mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border " + clases;
+  });
+}
+actualizarTimers();
+setInterval(actualizarTimers, 1000);
+
+// ---- Service Worker (PWA) ----
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  });
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+{
+  "name": "Taller 3D — App de Producción",
+  "short_name": "Taller 3D",
+  "description": "Vista móvil de producción: pedidos en vivo y stock de filamentos.",
+  "lang": "es",
+  "start_url": "/mobile",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#090d16",
+  "theme_color": "#090d16",
+  "categories": ["productivity", "business"],
+  "icons": [
+    {
+      "src": "/static/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

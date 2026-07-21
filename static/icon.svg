@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1120"/>
+      <stop offset="1" stop-color="#151c2c"/>
+    </linearGradient>
+    <linearGradient id="ac" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2dd4bf"/>
+      <stop offset="1" stop-color="#06b6d4"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <rect x="24" y="24" width="464" height="464" rx="96" fill="none" stroke="url(#ac)" stroke-width="6" opacity="0.35"/>
+  <!-- Impresora 3D estilizada -->
+  <g fill="none" stroke="url(#ac)" stroke-width="20" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="136" y="150" width="240" height="150" rx="18"/>
+    <line x1="256" y1="150" x2="256" y2="110"/>
+    <rect x="196" y="300" width="120" height="34" rx="10" fill="url(#ac)" stroke="none"/>
+  </g>
+  <text x="256" y="418" font-family="Inter, Arial, sans-serif" font-size="72" font-weight="800"
+        text-anchor="middle" fill="#e2e8f0">3D</text>
+</svg>

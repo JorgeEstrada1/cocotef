@@ -491,10 +491,21 @@ def registrar_rutas(app):
             "periodo_next": periodo_str(ps, ms),
         }
 
+    def _es_movil():
+        """Heurística simple de dispositivo móvil a partir del User-Agent."""
+        ua = (request.user_agent.string or "").lower()
+        claves = ("android", "iphone", "ipod", "ipad", "mobile",
+                  "windows phone", "blackberry", "opera mini")
+        return any(k in ua for k in claves)
+
     # ---------- Dashboard ----------
     @app.route("/")
     @login_required
     def dashboard():
+        # Desde el celular (o la PWA instalada) mostramos la App de Taller móvil.
+        # ?desktop=1 fuerza el panel completo aunque sea un teléfono.
+        if _es_movil() and not request.args.get("desktop"):
+            return redirect(url_for("app_mobile"))
         per = _contexto_periodo()
         bal = calcular_balance(per["anio"], per["mes"])
         proyectos = Proyecto.query.order_by(Proyecto.creado.desc()).limit(6).all()
@@ -510,6 +521,54 @@ def registrar_rutas(app):
                                proyectos=proyectos, conteo_estados=conteo_estados,
                                alertas_stock=alertas_stock,
                                urgentes=urgentes, tendencias=TENDENCIAS_VIRALES)
+
+    # ---------- App de Taller (vista móvil de producción) ----------
+    @app.route("/mobile")
+    @login_required
+    def app_mobile():
+        """Vista simplificada para el teléfono: pedidos en vivo + stock rápido."""
+        activos = Proyecto.query.filter(Proyecto.estado != "Entregado").all()
+        # Los que tienen fecha van primero (más próximos arriba); el resto por reciente.
+        activos.sort(key=lambda p: (p.fecha_entrega is None,
+                                    p.fecha_entrega or date.max,
+                                    -(p.id or 0)))
+        filamentos = Filamento.query.order_by(Filamento.tipo, Filamento.color).all()
+        return render_template("mobile.html", proyectos=activos,
+                               filamentos=filamentos, estados=Proyecto.ESTADOS)
+
+    @app.route("/mobile/proyecto/<int:pid>/estado", methods=["POST"])
+    @login_required
+    def mobile_cambiar_estado(pid):
+        """Cambio rápido de estado por AJAX (sin recargar). Devuelve JSON."""
+        p = Proyecto.query.get_or_404(pid)
+        nuevo = request.form.get("estado") or (request.get_json(silent=True) or {}).get("estado")
+        if nuevo not in Proyecto.ESTADOS:
+            return jsonify({"ok": False, "error": "Estado inválido."}), 400
+        p.estado = nuevo
+        db.session.commit()
+        return jsonify({
+            "ok": True,
+            "id": p.id,
+            "estado": p.estado,
+            "activo": p.estado != "Entregado",   # si sale del tablero de producción
+            "mensaje": f"«{p.nombre}» → {p.estado}",
+        })
+
+    # ---------- PWA (manifest + service worker) ----------
+    @app.route("/sw.js")
+    def service_worker():
+        """Sirve el Service Worker desde la raíz para que su alcance cubra /mobile."""
+        return app.send_static_file("sw.js"), 200, {
+            "Content-Type": "application/javascript",
+            "Service-Worker-Allowed": "/",
+            "Cache-Control": "no-cache",
+        }
+
+    @app.route("/manifest.json")
+    def manifest():
+        return app.send_static_file("manifest.json"), 200, {
+            "Content-Type": "application/manifest+json",
+        }
 
     # ---------- Proyectos / Impresiones ----------
     @app.route("/proyectos/parse-gcode", methods=["POST"])
@@ -1163,6 +1222,32 @@ def registrar_rutas(app):
             return "Bs. {:,.0f}".format(float(v or 0))
         except (ValueError, TypeError):
             return "Bs. 0"
+
+    # Traduce el nombre del color del filamento a un hex para el indicador visual.
+    COLORES_HEX = {
+        "blanco": "#f8fafc", "negro": "#111827", "gris": "#9ca3af",
+        "plata": "#cbd5e1", "plateado": "#cbd5e1", "rojo": "#ef4444",
+        "naranja": "#f97316", "naranjo": "#f97316", "amarillo": "#eab308",
+        "dorado": "#d4af37", "oro": "#d4af37", "verde": "#22c55e",
+        "menta": "#34d399", "turquesa": "#2dd4bf", "cyan": "#06b6d4",
+        "celeste": "#38bdf8", "azul": "#3b82f6", "morado": "#a855f7",
+        "violeta": "#8b5cf6", "lila": "#c4b5fd", "rosa": "#ec4899",
+        "rosado": "#ec4899", "fucsia": "#d946ef", "cafe": "#92400e",
+        "café": "#92400e", "marron": "#92400e", "marrón": "#92400e",
+        "beige": "#e7d8b1", "transparente": "#e5e7eb", "natural": "#e5e7eb",
+    }
+
+    @app.template_filter("color_hex")
+    def color_hex(nombre):
+        if not nombre:
+            return "#64748b"
+        n = str(nombre).strip().lower()
+        if n.startswith("#") and len(n) in (4, 7):
+            return n
+        for clave, hexv in COLORES_HEX.items():   # coincidencia por palabra contenida
+            if clave in n:
+                return hexv
+        return "#64748b"
 
 
 app = crear_app()

@@ -1,4 +1,4 @@
-# 🖨️ Taller 3D — Gestión y control financiero · v1.7
+# 🖨️ Taller 3D — Gestión y control financiero · v1.8
 
 Sistema local (Flask + SQLite) para controlar impresiones, costos, inventario y
 "la plata" de un emprendimiento de impresión 3D manejado por 2 socios. Con
@@ -58,6 +58,30 @@ versión anterior, **al arrancar se migra automáticamente** (añade columnas nu
 con `ALTER TABLE` y crea tablas nuevas sin borrar datos ni relaciones).
 
 ---
+
+## 📱 Novedades de la v1.8 — App de Taller (móvil / PWA)
+
+### Vista móvil de producción (`/mobile`)
+- Plantilla `mobile.html` independiente, **Dark Premium**, pensada para usar con
+  **una mano**: tarjetas verticales y **barra de pestañas inferior** (Pedidos / Filamentos).
+- **Tarjetas de pedidos en vivo**: foto principal de la pieza, nombre, cliente y
+  **badge de estado**. Cada pedido con fecha de entrega muestra un **timer countdown**
+  en JavaScript con colores de alerta:
+  🟢 **verde** (tiempo de sobra) · 🟠 **naranja** (< 12 h) · 🔴 **rojo animado**
+  (vencido o < 3 h).
+- **Cambio rápido de estado** con un toque (**✅ Listo**, **📦 Entregado**, o el
+  selector *Más…*) vía **AJAX** (`fetch`): actualiza la tarjeta sin recargar la
+  pantalla; al marcar *Entregado* la tarjeta sale del tablero con animación.
+- **🧵 Stock de Filamentos** rápido: cada rollo como barra compacta con **indicador
+  de color**, material, gramos restantes, equivalente en **rollos**, barra de
+  progreso y **alerta de bajo stock**.
+
+### PWA (instalable)
+- `/` **redirige automáticamente** a `/mobile` desde teléfonos (detección por
+  User-Agent); `?desktop=1` fuerza el panel completo.
+- `manifest.json` (con `start_url: /mobile`, íconos e identidad) y `sw.js`
+  (Service Worker servido desde la raíz, alcance `/`) → la app se puede **instalar**
+  y abre por defecto en la vista móvil, con caché básica offline.
 
 ## 🆕 Novedades de la v1.7
 
