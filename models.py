@@ -240,6 +240,15 @@ class Inversion(db.Model):
         return None
 
     @property
+    def deudor_username(self):
+        """username del socio deudor (para control de permisos). None si parejos."""
+        return self.deudor.lower() if self.deudor else None
+
+    @property
+    def acreedor_username(self):
+        return self.acreedor.lower() if self.acreedor else None
+
+    @property
     def deuda_total(self):
         """Deuda original (para mostrar el progreso del abono)."""
         return self.deuda_inicial(self.aporte_jorge, self.aporte_tefi)
@@ -249,8 +258,35 @@ class Inversion(db.Model):
         """Cuánto se ha abonado ya de la deuda."""
         return round(max(self.deuda_total - (self.deuda_pendiente or 0.0), 0.0), 2)
 
+    # Historial de abonos hechos a esta deuda (se borran junto con la inversión)
+    abonos = db.relationship("AbonoInversion", backref="inversion",
+                             cascade="all, delete-orphan",
+                             order_by="AbonoInversion.id")
+
     def __repr__(self):
         return f"<Inversion {self.descripcion} ({self.estado})>"
+
+
+class AbonoInversion(db.Model):
+    """
+    Registro de cada abono/pago hecho para reducir la deuda de una Inversion.
+    Guarda quién abonó, el monto, el saldo que quedó tras el abono y una nota
+    opcional. Es trazabilidad del módulo de capital (independiente de la caja).
+    """
+    __tablename__ = "abonos_inversion"
+
+    id = db.Column(db.Integer, primary_key=True)
+    inversion_id = db.Column(db.Integer, db.ForeignKey("inversiones.id"))
+    usuario_id = db.Column(db.Integer, db.ForeignKey("usuarios.id"))   # socio que abonó
+    monto = db.Column(db.Float, nullable=False)
+    saldo_restante = db.Column(db.Float, default=0.0)                  # deuda tras el abono
+    nota = db.Column(db.String(200))
+    fecha = db.Column(db.Date, default=date.today)
+
+    usuario = db.relationship("User")
+
+    def __repr__(self):
+        return f"<AbonoInversion {self.monto} inv={self.inversion_id}>"
 
 
 class Gasto(db.Model):

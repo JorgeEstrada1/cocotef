@@ -22,7 +22,7 @@ from sqlalchemy import extract, inspect, text
 
 from config import Config
 from models import (db, User, Filamento, Proyecto, Venta, Gasto,
-                    Liquidacion, Inversion)
+                    Liquidacion, Inversion, AbonoInversion)
 
 MESES = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
          "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
@@ -794,16 +794,20 @@ def registrar_rutas(app):
     @login_required
     def balance():
         per = _contexto_periodo()
+        historial = Liquidacion.query.order_by(
+            Liquidacion.fecha.desc(), Liquidacion.id.desc()).all()
         return render_template("balance.html",
-                               bal=calcular_balance(per["anio"], per["mes"]), per=per)
+                               bal=calcular_balance(per["anio"], per["mes"]),
+                               per=per, historial=historial, meses=MESES)
 
     @app.route("/balance/liquidar", methods=["POST"])
     @login_required
     def liquidar_balance():
         """
-        Registra la transferencia entre socios que deja el ajuste del mes en Bs. 0.
-        Recalcula el ajuste en el servidor (no confía en el cliente) y crea la
-        Liquidacion correspondiente. No toca ingresos ni gastos.
+        Registra una transferencia entre socios (total o PARCIAL). La dirección
+        (quién paga a quién) la determina el servidor a partir del ajuste; el
+        monto es editable por el usuario para permitir pagos parciales. No toca
+        ingresos ni gastos.
         """
         anio, mes = parse_periodo(request.form.get("periodo"))
         bal = calcular_balance(anio, mes)
@@ -811,15 +815,44 @@ def registrar_rutas(app):
         if not sug:
             flash("Las cuentas de este mes ya están a mano.", "ok")
             return redirect(url_for("balance", periodo=periodo_str(anio, mes)))
+
+        # Monto editable: por defecto la sugerencia, tope = ajuste pendiente
+        try:
+            monto = float(request.form.get("monto") or sug["monto"])
+        except ValueError:
+            monto = sug["monto"]
+        if monto <= 0:
+            flash("El monto a transferir debe ser mayor a 0.", "error")
+            return redirect(url_for("balance", periodo=periodo_str(anio, mes)))
+        # No permitir pagar de más y voltear el desbalance
+        monto = round(min(monto, sug["monto"]), 2)
+
         db.session.add(Liquidacion(
-            anio=anio, mes=mes, fecha=date.today(), monto=sug["monto"],
+            anio=anio, mes=mes, fecha=date.today(), monto=monto,
             pagador_id=sug["pagador"].id, receptor_id=sug["receptor"].id,
         ))
         db.session.commit()
-        flash(f"{sug['pagador'].nombre} le pagó "
-              f"Bs. {sug['monto']:,.0f} a {sug['receptor'].nombre}. "
-              f"Cuentas saldadas ✔", "ok")
+
+        remanente = round(sug["monto"] - monto, 2)
+        if remanente <= 0:
+            flash(f"{sug['pagador'].nombre} le pagó Bs. {monto:,.0f} a "
+                  f"{sug['receptor'].nombre}. Cuentas saldadas ✔", "ok")
+        else:
+            flash(f"Pago parcial de Bs. {monto:,.0f} registrado "
+                  f"({sug['pagador'].nombre} → {sug['receptor'].nombre}). "
+                  f"Saldo remanente del mes: Bs. {remanente:,.0f}.", "ok")
         return redirect(url_for("balance", periodo=periodo_str(anio, mes)))
+
+    @app.route("/balance/liquidar/<int:lid>/eliminar", methods=["POST"])
+    @login_required
+    def eliminar_liquidacion(lid):
+        """Revierte (elimina) una transferencia; el balance se recalcula solo."""
+        liq = Liquidacion.query.get_or_404(lid)
+        destino = periodo_str(liq.anio, liq.mes)
+        db.session.delete(liq)
+        db.session.commit()
+        flash("Liquidación revertida. El ajuste del mes se recalculó.", "ok")
+        return redirect(url_for("balance", periodo=destino))
 
     # ---------- Deudas e Inversiones de Capital (módulo independiente) ----------
     @app.route("/inversiones")
@@ -828,9 +861,11 @@ def registrar_rutas(app):
         lista = Inversion.query.order_by(Inversion.fecha.desc(), Inversion.id.desc()).all()
         total_activos = sum(i.monto_total or 0 for i in lista)
         deuda_abierta = sum(i.deuda_pendiente or 0 for i in lista if i.estado == "Pendiente")
+        historial_abonos = AbonoInversion.query.order_by(
+            AbonoInversion.fecha.desc(), AbonoInversion.id.desc()).all()
         return render_template("inversiones.html", inversiones=lista,
                                total_activos=total_activos, deuda_abierta=deuda_abierta,
-                               estados=Inversion.ESTADOS)
+                               estados=Inversion.ESTADOS, historial_abonos=historial_abonos)
 
     @app.route("/inversiones/nueva", methods=["POST"])
     @login_required
@@ -860,19 +895,44 @@ def registrar_rutas(app):
     @login_required
     def abonar_inversion(iid):
         inv = Inversion.query.get_or_404(iid)
+
+        # Control de permisos: solo el socio DEUDOR puede abonar su deuda.
+        # El acreedor no debe poder descontar la deuda del otro por error.
+        if inv.estado == "Saldada" or not inv.deudor_username:
+            flash("Esta inversión no tiene deuda pendiente que abonar.", "error")
+            return redirect(url_for("inversiones"))
+        if current_user.username != inv.deudor_username:
+            flash(f"Solo {inv.deudor} (el socio deudor) puede registrar abonos "
+                  f"de «{inv.descripcion}».", "error")
+            return redirect(url_for("inversiones"))
+
         monto = float(request.form.get("monto") or 0)
         if monto <= 0:
             flash("El abono debe ser mayor a 0.", "error")
             return redirect(url_for("inversiones"))
+        # No abonar más de lo que se debe
+        monto = round(min(monto, inv.deuda_pendiente or 0.0), 2)
+
         inv.deuda_pendiente = round(max((inv.deuda_pendiente or 0) - monto, 0.0), 2)
         if inv.deuda_pendiente <= 0:
             inv.deuda_pendiente = 0.0
             inv.estado = "Saldada"
-            flash(f"Deuda de «{inv.descripcion}» saldada por completo ✔", "ok")
+
+        # Trazabilidad: registra el abono con el saldo resultante y nota opcional
+        db.session.add(AbonoInversion(
+            inversion_id=inv.id, usuario_id=current_user.id, monto=monto,
+            saldo_restante=inv.deuda_pendiente,
+            nota=(request.form.get("nota") or "").strip() or None,
+            fecha=date.today(),
+        ))
+        db.session.commit()
+
+        if inv.estado == "Saldada":
+            flash(f"Abono de Bs. {monto:,.0f} registrado. "
+                  f"Deuda de «{inv.descripcion}» saldada por completo ✔", "ok")
         else:
             flash(f"Abono de Bs. {monto:,.0f} registrado. "
                   f"Saldo restante: Bs. {inv.deuda_pendiente:,.0f}.", "ok")
-        db.session.commit()
         return redirect(url_for("inversiones"))
 
     @app.route("/inversiones/<int:iid>/eliminar", methods=["POST"])

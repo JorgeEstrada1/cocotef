@@ -104,22 +104,32 @@
         </span>
       </div>
       <div class="flex items-center justify-between border-t border-edge pt-3">
-        <span class="text-sm text-slate-400">Monto exacto</span>
+        <span class="text-sm text-slate-400">Ajuste sugerido</span>
         <span class="text-xl font-bold text-teal-400">{{ sug.monto | money }}</span>
       </div>
     </div>
 
-    <form method="post" action="{{ url_for('liquidar_balance') }}" class="flex gap-3">
+    <form method="post" action="{{ url_for('liquidar_balance') }}">
       <input type="hidden" name="periodo" value="{{ per.periodo }}">
-      <button type="button"
-              onclick="document.getElementById('modalLiquidar').classList.add('hidden')"
-              class="flex-1 px-4 py-2 rounded-lg bg-base border border-edge text-slate-300 hover:bg-cardh transition">
-        Cancelar
-      </button>
-      <button type="submit"
-              class="flex-1 bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-900 font-semibold rounded-lg px-4 py-2 hover:opacity-90 transition">
-        Confirmar pago
-      </button>
+      <label class="block mb-4">
+        <span class="text-sm text-slate-400">Monto a Transferir (Bs.)</span>
+        <input type="number" name="monto" step="0.01" min="0.01" max="{{ sug.monto }}"
+               value="{{ '%.2f' | format(sug.monto) }}"
+               class="w-full mt-1 bg-base border border-edge rounded-lg px-3 py-2 text-slate-100 text-lg font-semibold
+                      focus:border-teal-400 focus:ring-2 focus:ring-teal-500/20 outline-none">
+        <span class="text-xs text-slate-500">Editable: puedes registrar un <b>pago parcial</b> (menor al ajuste sugerido).</span>
+      </label>
+      <div class="flex gap-3">
+        <button type="button"
+                onclick="document.getElementById('modalLiquidar').classList.add('hidden')"
+                class="flex-1 px-4 py-2 rounded-lg bg-base border border-edge text-slate-300 hover:bg-cardh transition">
+          Cancelar
+        </button>
+        <button type="submit"
+                class="flex-1 bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-900 font-semibold rounded-lg px-4 py-2 hover:opacity-90 transition">
+          Confirmar pago
+        </button>
+      </div>
     </form>
   </div>
 </div>
@@ -130,6 +140,61 @@
 </div>
 {% endif %}
 <!-- =================== FIN SALDAR CUENTAS =================== -->
+
+<!-- ===================== HISTORIAL DE LIQUIDACIONES ===================== -->
+<div class="mt-8">
+  <h2 class="font-semibold mb-3 text-slate-200 flex items-center gap-2">
+    📜 Historial de Liquidaciones y Pagos entre Socios
+  </h2>
+  <div class="bg-card border border-edge rounded-xl shadow-lg overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead class="bg-cardh text-slate-400 text-left">
+        <tr>
+          <th class="p-3">Fecha</th>
+          <th class="p-3">Emisor (paga)</th>
+          <th class="p-3">Receptor (recibe)</th>
+          <th class="p-3 text-right">Monto</th>
+          <th class="p-3">Mes / Año</th>
+          <th class="p-3">Acción</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for l in historial %}
+        <tr class="border-t border-edge hover:bg-cardh/50">
+          <td class="p-3 text-slate-300">{{ l.fecha.strftime('%d/%m/%Y') if l.fecha else '—' }}</td>
+          <td class="p-3">
+            {% if l.pagador %}
+            <span class="inline-flex items-center gap-1.5 text-rose-300">
+              <span class="w-2.5 h-2.5 rounded-full" style="background: {{ l.pagador.color }}"></span>
+              {{ l.pagador.nombre }}
+            </span>
+            {% else %}<span class="text-slate-500">—</span>{% endif %}
+          </td>
+          <td class="p-3">
+            {% if l.receptor %}
+            <span class="inline-flex items-center gap-1.5 text-teal-300">
+              <span class="w-2.5 h-2.5 rounded-full" style="background: {{ l.receptor.color }}"></span>
+              {{ l.receptor.nombre }}
+            </span>
+            {% else %}<span class="text-slate-500">—</span>{% endif %}
+          </td>
+          <td class="p-3 text-right font-semibold text-teal-400">{{ l.monto | money }}</td>
+          <td class="p-3 text-slate-300">{{ meses[l.mes] }} {{ l.anio }}</td>
+          <td class="p-3">
+            <form method="post" action="{{ url_for('eliminar_liquidacion', lid=l.id) }}"
+                  onsubmit="return confirm('¿Revertir esta liquidación? El ajuste del mes se recalculará.')">
+              <button class="text-rose-400 hover:text-rose-300">Revertir</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="p-4 text-center text-slate-500">Aún no se han registrado liquidaciones entre socios.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+<!-- =================== FIN HISTORIAL =================== -->
 
 <p class="text-xs text-slate-500 mt-6">
   El reparto asume ganancias divididas equitativamente. "En mano" = ingresos reconocidos − gastos pagados.
