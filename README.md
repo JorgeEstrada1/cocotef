@@ -1,4 +1,4 @@
-# 🖨️ Taller 3D — Gestión y control financiero · v1.8
+# 🖨️ Taller 3D — Gestión y control financiero · v1.9
 
 Sistema local (Flask + SQLite) para controlar impresiones, costos, inventario y
 "la plata" de un emprendimiento de impresión 3D manejado por 2 socios. Con
@@ -58,6 +58,43 @@ versión anterior, **al arrancar se migra automáticamente** (añade columnas nu
 con `ALTER TABLE` y crea tablas nuevas sin borrar datos ni relaciones).
 
 ---
+
+## ☁️ Novedades de la v1.9 — Arquitectura híbrida (Backend PythonAnywhere + PWA en Vercel)
+
+El **backend/API Flask** vive en PythonAnywhere y el **frontend/PWA** de la App de
+Producción se despliega como sitio estático en **Vercel**, consumiendo la API por HTTP.
+
+### API REST v1 (Flask + CORS)
+- **CORS** habilitado (`flask-cors`) solo para `/api/*`. Orígenes permitidos vía
+  la variable de entorno `CORS_ORIGINS` (coma-separada; el dominio de Vercel).
+- Endpoints (JSON):
+  | Método | Ruta | Descripción |
+  |--------|------|-------------|
+  | `GET`  | `/api/v1/pedidos-activos` | Pedidos vigentes: `id, nombre, cliente, estado, foto_url, fecha_entrega_iso`. |
+  | `PATCH`| `/api/v1/pedidos/<id>/estado` | Cambia el estado (JSON `{"estado": "..."}`; acepta alias como *En impresión*, *Listo*). |
+  | `GET`  | `/api/v1/filamentos-stock` | Filamentos: `id, marca, material, color_hex, stock_gramos, alerta_bajo_stock`. |
+  | `GET`  | `/api/v1/imagenes/<archivo>` | Sirve las fotos **públicamente** (para que Vercel las renderice). |
+- Las `foto_url` son **absolutas** (dominio del backend), tomadas de `BACKEND_BASE_URL`.
+- **API key opcional**: si defines `MOBILE_API_KEY`, la API exige el header `X-API-Key`.
+
+### Frontend en Vercel (`/public` + `vercel.json`)
+- PWA pura **HTML/JS/Tailwind** (sin build): tarjetas verticales Dark Premium,
+  **timer countdown** con badges (🟢 >12h · 🟠 <12h · 🔴 animado <3h/vencido),
+  **acciones rápidas con Fetch** (PATCH sin recargar) y **stock de filamentos**
+  con muestra de color HEX y gramos restantes.
+- `public/config.js` define `API_BASE_URL` (por defecto
+  `https://cocoteff.pythonanywhere.com`) y `API_KEY` opcional.
+- `manifest.json` (`start_url: /`) + `sw.js` → **instalable** en Android (Chrome)
+  e iOS (Safari), con caché del *app shell*.
+- `vercel.json` publica la carpeta `public/` como sitio estático y fija el header
+  `Service-Worker-Allowed: /` para el Service Worker.
+
+### Variables de entorno del backend
+| Variable | Uso |
+|----------|-----|
+| `CORS_ORIGINS` | Dominios permitidos para la API (ej. `https://taller3d.vercel.app`). |
+| `BACKEND_BASE_URL` | URL absoluta del backend para las `foto_url` (ej. `https://cocoteff.pythonanywhere.com`). |
+| `MOBILE_API_KEY` | (Opcional) Clave que la PWA debe enviar en `X-API-Key`. |
 
 ## 📱 Novedades de la v1.8 — App de Taller (móvil / PWA)
 

@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#090d16">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Taller 3D">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icon.svg">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <title>Taller 3D · Producción</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: { extend: {
+        colors: { base:"#090d16", card:"#151c2c", cardh:"#1b2338", edge:"#232c42" },
+        fontFamily: { sans:["Inter","system-ui","sans-serif"] },
+      }},
+    };
+  </script>
+  <style>
+    body { background-color:#090d16; -webkit-tap-highlight-color: transparent; }
+    ::-webkit-scrollbar { width:0; height:0; }
+    @keyframes pulseRed { 0%,100%{ box-shadow:0 0 0 0 rgba(244,63,94,.5);} 50%{ box-shadow:0 0 0 6px rgba(244,63,94,0);} }
+    .alerta-roja { animation: pulseRed 1.2s infinite; }
+    .fade-out { transition: opacity .4s ease, transform .4s ease; opacity:0; transform: scale(.96); }
+    .skeleton { background: linear-gradient(90deg,#151c2c 25%,#1b2338 50%,#151c2c 75%); background-size:200% 100%; animation: sk 1.3s infinite; }
+    @keyframes sk { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+  </style>
+</head>
+<body class="bg-base text-slate-200 font-sans antialiased min-h-screen pb-24 select-none">
+
+<!-- Header -->
+<header class="sticky top-0 z-20 bg-card/90 backdrop-blur border-b border-edge">
+  <div class="px-4 py-3 flex items-center gap-2" style="padding-top:calc(env(safe-area-inset-top) + .75rem)">
+    <span class="text-teal-400 text-xl">🖨️</span>
+    <div class="leading-tight">
+      <p class="font-bold bg-gradient-to-r from-teal-400 to-cyan-400 bg-clip-text text-transparent">Taller 3D · Producción</p>
+      <p class="text-[11px] text-slate-500" id="conexion">Conectando…</p>
+    </div>
+    <button id="btn-refrescar" onclick="cargarTodo()" title="Refrescar"
+            class="ml-auto px-2.5 py-1.5 rounded-lg text-sm bg-base border border-edge text-slate-300 active:bg-cardh">🔄</button>
+  </div>
+</header>
+
+<!-- ============ SECCIÓN: PEDIDOS ============ -->
+<section id="sec-pedidos" class="px-4 pt-4 space-y-4">
+  <div class="flex items-center justify-between">
+    <h1 class="text-lg font-bold text-slate-100">📦 Pedidos en producción</h1>
+    <span id="conteo-pedidos" class="text-xs px-2 py-0.5 rounded-full bg-cardh border border-edge text-slate-400">—</span>
+  </div>
+  <div id="lista-pedidos" class="space-y-4"></div>
+</section>
+
+<!-- ============ SECCIÓN: FILAMENTOS ============ -->
+<section id="sec-filamentos" class="hidden px-4 pt-4 space-y-3">
+  <h1 class="text-lg font-bold text-slate-100">🧵 Stock de Filamentos</h1>
+  <div id="lista-filamentos" class="space-y-3"></div>
+</section>
+
+<!-- Toast -->
+<div id="toast" class="fixed left-1/2 -translate-x-1/2 bottom-24 z-40 hidden">
+  <div class="px-4 py-2 rounded-xl bg-cardh border border-teal-500/40 text-teal-200 text-sm shadow-2xl"></div>
+</div>
+
+<!-- ============ TAB BAR INFERIOR ============ -->
+<nav class="fixed bottom-0 inset-x-0 z-30 bg-card/95 backdrop-blur border-t border-edge"
+     style="padding-bottom: env(safe-area-inset-bottom)">
+  <div class="grid grid-cols-2">
+    <button id="tab-pedidos" onclick="mostrar('pedidos')" class="py-3 flex flex-col items-center gap-0.5 text-teal-300">
+      <span class="text-lg">📦</span><span class="text-[11px] font-medium">Pedidos</span>
+    </button>
+    <button id="tab-filamentos" onclick="mostrar('filamentos')" class="py-3 flex flex-col items-center gap-0.5 text-slate-500">
+      <span class="text-lg">🧵</span><span class="text-[11px] font-medium">Filamentos</span>
+    </button>
+  </div>
+</nav>
+
+<script src="/config.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

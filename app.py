@@ -23,6 +23,7 @@ EXTENSIONES_IMAGEN = (".jpg", ".jpeg", ".png", ".webp")
 from flask_login import (LoginManager, login_user, logout_user,
                          login_required, current_user)
 from flask_bcrypt import Bcrypt
+from flask_cors import CORS
 from sqlalchemy import extract, inspect, text
 
 from config import Config
@@ -31,6 +32,56 @@ from models import (db, User, Filamento, Proyecto, Venta, Gasto,
 
 MESES = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
          "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
+
+# Traducción de nombre de color (filamento) -> HEX para el indicador visual.
+# Usado por el filtro de plantilla `color_hex` y por la API REST móvil.
+COLORES_HEX = {
+    "blanco": "#f8fafc", "negro": "#111827", "gris": "#9ca3af",
+    "plata": "#cbd5e1", "plateado": "#cbd5e1", "rojo": "#ef4444",
+    "naranja": "#f97316", "naranjo": "#f97316", "amarillo": "#eab308",
+    "dorado": "#d4af37", "oro": "#d4af37", "verde": "#22c55e",
+    "menta": "#34d399", "turquesa": "#2dd4bf", "cyan": "#06b6d4",
+    "celeste": "#38bdf8", "azul": "#3b82f6", "morado": "#a855f7",
+    "violeta": "#8b5cf6", "lila": "#c4b5fd", "rosa": "#ec4899",
+    "rosado": "#ec4899", "fucsia": "#d946ef", "cafe": "#92400e",
+    "café": "#92400e", "marron": "#92400e", "marrón": "#92400e",
+    "beige": "#e7d8b1", "transparente": "#e5e7eb", "natural": "#e5e7eb",
+}
+
+
+def nombre_a_hex(nombre):
+    """Devuelve un color HEX a partir del nombre libre del filamento."""
+    if not nombre:
+        return "#64748b"
+    n = str(nombre).strip().lower()
+    if n.startswith("#") and len(n) in (4, 7):
+        return n
+    for clave, hexv in COLORES_HEX.items():   # coincidencia por palabra contenida
+        if clave in n:
+            return hexv
+    return "#64748b"
+
+
+# Alias de estados aceptados por la API móvil -> estado canónico del modelo.
+# Permite que el frontend use nombres amigables ("En impresión", "Listo").
+ALIAS_ESTADO = {
+    "diseñando": "Diseñando", "disenando": "Diseñando", "diseno": "Diseñando",
+    "por imprimir": "Por imprimir", "en cola": "Por imprimir",
+    "imprimiendo": "Imprimiendo", "en impresión": "Imprimiendo",
+    "en impresion": "Imprimiendo", "imprimiendo…": "Imprimiendo",
+    "terminado": "Terminado", "listo": "Terminado", "lista": "Terminado",
+    "entregado": "Entregado", "entregada": "Entregado", "enviado": "Entregado",
+}
+
+
+def normalizar_estado(valor):
+    """Normaliza un estado entrante (canónico o alias) al canónico o None."""
+    if not valor:
+        return None
+    v = str(valor).strip()
+    if v in Proyecto.ESTADOS:
+        return v
+    return ALIAS_ESTADO.get(v.lower())
 
 # Credenciales sembradas por defecto en el primer arranque.
 # IMPORTANTE: cambia estas contraseñas después de iniciar sesión.
@@ -74,6 +125,14 @@ def crear_app():
     os.makedirs(os.path.join(app.root_path, "instance"), exist_ok=True)
     os.makedirs(os.path.join(app.root_path, "instance", "gcodes"), exist_ok=True)
     os.makedirs(os.path.join(app.root_path, "instance", "uploads", "imagenes"), exist_ok=True)
+
+    # CORS solo para la API móvil (/api/*). Los orígenes permitidos (el dominio
+    # de Vercel) se definen en la variable de entorno CORS_ORIGINS separada por
+    # comas; por defecto "*" para facilitar el desarrollo.
+    origenes = os.environ.get("CORS_ORIGINS", "*")
+    if origenes != "*":
+        origenes = [o.strip() for o in origenes.split(",") if o.strip()]
+    CORS(app, resources={r"/api/*": {"origins": origenes}})
 
     db.init_app(app)
     bcrypt.init_app(app)
@@ -569,6 +628,99 @@ def registrar_rutas(app):
         return app.send_static_file("manifest.json"), 200, {
             "Content-Type": "application/manifest+json",
         }
+
+    # ==========================================================================
+    #  API REST v1 (consumida por la PWA móvil desplegada en Vercel)
+    #  Sin sesión de Flask-Login (cross-origin); opcionalmente protegida con una
+    #  API key por header X-API-Key si se define MOBILE_API_KEY en el entorno.
+    # ==========================================================================
+    def _base_backend():
+        """URL absoluta del backend (para construir URLs de imágenes)."""
+        base = os.environ.get("BACKEND_BASE_URL") or request.url_root
+        return base.rstrip("/")
+
+    def _url_imagen(filename):
+        if not filename:
+            return None
+        return f"{_base_backend()}/api/v1/imagenes/{filename}"
+
+    def _api_key_ok():
+        """True si no hay API key configurada o si el header coincide."""
+        requerida = os.environ.get("MOBILE_API_KEY")
+        if not requerida:
+            return True
+        enviada = request.headers.get("X-API-Key") or request.args.get("api_key")
+        return enviada == requerida
+
+    def _proyecto_a_json(p):
+        return {
+            "id": p.id,
+            "nombre": p.nombre,
+            "cliente": p.cliente or "",
+            "estado": p.estado,
+            "foto_url": _url_imagen(p.imagen_filename),
+            "fecha_entrega_iso": p.fecha_entrega.isoformat() if p.fecha_entrega else None,
+            "saldo_pendiente": p.saldo_pendiente,
+        }
+
+    def _filamento_a_json(f):
+        return {
+            "id": f.id,
+            "marca": "",                       # el modelo no guarda marca (reservado)
+            "material": f.tipo,
+            "color": f.color,
+            "color_hex": nombre_a_hex(f.color),
+            "stock_gramos": round(max(f.gramos_restantes, 0.0), 1),
+            "peso_rollo_g": f.peso_rollo_g,
+            "rollos_restantes": round((f.gramos_restantes / f.peso_rollo_g), 2) if f.peso_rollo_g else 0,
+            "alerta_bajo_stock": bool(f.bajo_stock),
+        }
+
+    @app.route("/api/v1/imagenes/<path:filename>")
+    def api_imagen(filename):
+        """Sirve las fotos de proyecto de forma pública (para la PWA en Vercel)."""
+        return send_from_directory(_imagenes_dir(), filename)
+
+    @app.route("/api/v1/pedidos-activos")
+    def api_pedidos_activos():
+        if not _api_key_ok():
+            return jsonify({"ok": False, "error": "API key inválida."}), 401
+        activos = Proyecto.query.filter(Proyecto.estado != "Entregado").all()
+        activos.sort(key=lambda p: (p.fecha_entrega is None,
+                                    p.fecha_entrega or date.max,
+                                    -(p.id or 0)))
+        return jsonify({
+            "ok": True,
+            "count": len(activos),
+            "pedidos": [_proyecto_a_json(p) for p in activos],
+        })
+
+    @app.route("/api/v1/pedidos/<int:pid>/estado", methods=["PATCH", "POST"])
+    def api_actualizar_estado(pid):
+        if not _api_key_ok():
+            return jsonify({"ok": False, "error": "API key inválida."}), 401
+        datos = request.get_json(silent=True) or request.form
+        estado = normalizar_estado(datos.get("estado"))
+        if not estado:
+            return jsonify({"ok": False,
+                            "error": "Estado inválido.",
+                            "estados_validos": Proyecto.ESTADOS}), 400
+        p = Proyecto.query.get_or_404(pid)
+        p.estado = estado
+        db.session.commit()
+        return jsonify({"ok": True, "pedido": _proyecto_a_json(p),
+                        "activo": p.estado != "Entregado"})
+
+    @app.route("/api/v1/filamentos-stock")
+    def api_filamentos_stock():
+        if not _api_key_ok():
+            return jsonify({"ok": False, "error": "API key inválida."}), 401
+        filamentos = Filamento.query.order_by(Filamento.tipo, Filamento.color).all()
+        return jsonify({
+            "ok": True,
+            "count": len(filamentos),
+            "filamentos": [_filamento_a_json(f) for f in filamentos],
+        })
 
     # ---------- Proyectos / Impresiones ----------
     @app.route("/proyectos/parse-gcode", methods=["POST"])
@@ -1224,30 +1376,9 @@ def registrar_rutas(app):
             return "Bs. 0"
 
     # Traduce el nombre del color del filamento a un hex para el indicador visual.
-    COLORES_HEX = {
-        "blanco": "#f8fafc", "negro": "#111827", "gris": "#9ca3af",
-        "plata": "#cbd5e1", "plateado": "#cbd5e1", "rojo": "#ef4444",
-        "naranja": "#f97316", "naranjo": "#f97316", "amarillo": "#eab308",
-        "dorado": "#d4af37", "oro": "#d4af37", "verde": "#22c55e",
-        "menta": "#34d399", "turquesa": "#2dd4bf", "cyan": "#06b6d4",
-        "celeste": "#38bdf8", "azul": "#3b82f6", "morado": "#a855f7",
-        "violeta": "#8b5cf6", "lila": "#c4b5fd", "rosa": "#ec4899",
-        "rosado": "#ec4899", "fucsia": "#d946ef", "cafe": "#92400e",
-        "café": "#92400e", "marron": "#92400e", "marrón": "#92400e",
-        "beige": "#e7d8b1", "transparente": "#e5e7eb", "natural": "#e5e7eb",
-    }
-
     @app.template_filter("color_hex")
     def color_hex(nombre):
-        if not nombre:
-            return "#64748b"
-        n = str(nombre).strip().lower()
-        if n.startswith("#") and len(n) in (4, 7):
-            return n
-        for clave, hexv in COLORES_HEX.items():   # coincidencia por palabra contenida
-            if clave in n:
-                return hexv
-        return "#64748b"
+        return nombre_a_hex(nombre)
 
 
 app = crear_app()
