@@ -1,0 +1,38 @@
+# =====================================================================
+#  Vercel SOLO despliega el frontend estático de la carpeta 'public/'.
+#  El backend Flask corre en PythonAnywhere, NO en Vercel.
+#  Aquí excluimos todo el código Python para que Vercel NUNCA intente
+#  compilar una Serverless Function (causa del 500 FUNCTION_INVOCATION_FAILED).
+# =====================================================================
+
+# --- Backend Flask (se ejecuta en PythonAnywhere) ---
+app.py
+config.py
+models.py
+requirements.txt
+*.py
+__pycache__/
+*.pyc
+
+# --- Plantillas y estáticos del backend (no son del frontend Vercel) ---
+templates/
+static/
+
+# --- Datos, entorno y utilidades locales ---
+instance/
+venv/
+.venv/
+env/
+ENV/
+*.db
+*.sqlite
+*.sqlite3
+*.zip
+arrancar_sistema.bat
+
+# --- Config local / editores ---
+.claude/
+.vscode/
+.idea/
+.env
+*.log
