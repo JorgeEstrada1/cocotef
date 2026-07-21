@@ -7,7 +7,11 @@ import io
 import csv
 import re
 import uuid
+import shutil
 import zipfile
+import subprocess
+import urllib.request
+import urllib.error
 from datetime import date, datetime
 
 from flask import (Flask, render_template, request, redirect, url_for, flash,
@@ -15,6 +19,7 @@ from flask import (Flask, render_template, request, redirect, url_for, flash,
 from werkzeug.utils import secure_filename
 
 EXTENSIONES_GCODE = (".gcode", ".gco", ".3mf")
+EXTENSIONES_IMAGEN = (".jpg", ".jpeg", ".png", ".webp")
 from flask_login import (LoginManager, login_user, logout_user,
                          login_required, current_user)
 from flask_bcrypt import Bcrypt
@@ -68,6 +73,7 @@ def crear_app():
     # Asegura que existan las carpetas de datos locales
     os.makedirs(os.path.join(app.root_path, "instance"), exist_ok=True)
     os.makedirs(os.path.join(app.root_path, "instance", "gcodes"), exist_ok=True)
+    os.makedirs(os.path.join(app.root_path, "instance", "uploads", "imagenes"), exist_ok=True)
 
     db.init_app(app)
     bcrypt.init_app(app)
@@ -99,6 +105,8 @@ def migrar_esquema():
             conn.execute(text("ALTER TABLE proyectos ADD COLUMN precio_total FLOAT DEFAULT 0"))
         if "adelanto" not in proy_cols:
             conn.execute(text("ALTER TABLE proyectos ADD COLUMN adelanto FLOAT DEFAULT 0"))
+        if "imagen_filename" not in proy_cols:
+            conn.execute(text("ALTER TABLE proyectos ADD COLUMN imagen_filename VARCHAR(120)"))
 
 
 def migrar_y_sembrar_usuarios():
@@ -423,6 +431,37 @@ def registrar_rutas(app):
         except OSError:
             pass
 
+    # ---- Imágenes de proyecto (JPG/PNG/WEBP) ----
+    def _imagenes_dir():
+        return os.path.join(app.root_path, "instance", "uploads", "imagenes")
+
+    def _guardar_imagen(archivo):
+        """
+        Valida y guarda una foto de proyecto con nombre UUID (secure_filename +
+        uuid evitan colisiones y rutas maliciosas). Devuelve el nombre en disco
+        o None si no hay archivo o el formato no está permitido.
+        """
+        if not archivo or not archivo.filename:
+            return None
+        base = secure_filename(archivo.filename)
+        ext = os.path.splitext(base)[1].lower()
+        if ext not in EXTENSIONES_IMAGEN:
+            return None
+        nombre_disco = f"{uuid.uuid4().hex}{ext}"
+        archivo.save(os.path.join(_imagenes_dir(), nombre_disco))
+        return nombre_disco
+
+    def _borrar_imagen(nombre):
+        """Borra la foto física si existe (evita basura en disco)."""
+        if not nombre:
+            return
+        ruta = os.path.join(_imagenes_dir(), nombre)
+        try:
+            if os.path.isfile(ruta):
+                os.remove(ruta)
+        except OSError:
+            pass
+
     def _filtrar_mes(query, columna_fecha, per):
         return query.filter(extract("year", columna_fecha) == per["anio"],
                             extract("month", columna_fecha) == per["mes"])
@@ -523,6 +562,7 @@ def registrar_rutas(app):
         else:
             # Guarda físicamente el G-code/3MF subido con el formulario
             p.gcode_filename = _guardar_gcode(request.files.get("gcode_file"))
+            p.imagen_filename = _guardar_imagen(request.files.get("imagen_file"))
             db.session.add(p)
             db.session.commit()
             flash("Proyecto creado.", "ok")
@@ -573,6 +613,22 @@ def registrar_rutas(app):
                     flash("Formato de archivo no soportado; se conservó el anterior.", "error")
             # Si NO subió archivo, gcode_filename queda intacto.
 
+            # ¿Subió una foto nueva? -> borrar la anterior y guardar la nueva
+            nueva_img = request.files.get("imagen_file")
+            if nueva_img and nueva_img.filename:
+                guardada = _guardar_imagen(nueva_img)
+                if guardada:
+                    _borrar_imagen(p.imagen_filename)   # elimina la foto vieja
+                    p.imagen_filename = guardada
+                    flash("Foto del proyecto actualizada.", "ok")
+                else:
+                    flash("Formato de imagen no soportado (usa JPG, PNG o WEBP); "
+                          "se conservó la anterior.", "error")
+            # Quitar la foto sin subir otra (checkbox de la plantilla)
+            elif request.form.get("quitar_imagen") and p.imagen_filename:
+                _borrar_imagen(p.imagen_filename)
+                p.imagen_filename = None
+
             db.session.commit()  # el costo se recalcula solo (propiedad derivada)
             flash("Proyecto actualizado.", "ok")
             return redirect(url_for("proyectos"))
@@ -589,11 +645,18 @@ def registrar_rutas(app):
             return redirect(url_for("proyectos"))
         return send_from_directory(_gcodes_dir(), p.gcode_filename, as_attachment=True)
 
+    @app.route("/uploads/imagenes/<path:filename>")
+    @login_required
+    def imagen_proyecto(filename):
+        """Sirve la foto de un proyecto (miniatura y vista completa)."""
+        return send_from_directory(_imagenes_dir(), filename)
+
     @app.route("/proyectos/<int:pid>/eliminar", methods=["POST"])
     @login_required
     def eliminar_proyecto(pid):
         p = Proyecto.query.get_or_404(pid)
         _borrar_gcode(p.gcode_filename)   # borra el archivo físico para no dejar basura
+        _borrar_imagen(p.imagen_filename)  # borra también la foto de la pieza
         db.session.delete(p)
         db.session.commit()
         return redirect(url_for("proyectos"))
@@ -942,6 +1005,156 @@ def registrar_rutas(app):
         db.session.commit()
         flash("Inversión eliminada.", "ok")
         return redirect(url_for("inversiones"))
+
+    # ---------- Sistema / Configuración (respaldos, sync, recarga) ----------
+    def _db_path():
+        """Ruta absoluta del archivo SQLite en uso (según la config actual)."""
+        uri = app.config.get("SQLALCHEMY_DATABASE_URI", "")
+        if uri.startswith("sqlite:///"):
+            return uri[len("sqlite:///"):]
+        return None
+
+    def _pa_config():
+        """Credenciales de PythonAnywhere leídas de variables de entorno."""
+        return {
+            "username": os.environ.get("PA_USERNAME"),
+            "domain": os.environ.get("PA_DOMAIN"),
+            "token": os.environ.get("PA_API_TOKEN"),
+            "host": os.environ.get("PA_API_HOST", "www.pythonanywhere.com"),
+        }
+
+    @app.route("/sistema")
+    @login_required
+    def sistema():
+        ruta = _db_path()
+        db_info = {"path": ruta, "existe": bool(ruta and os.path.isfile(ruta)),
+                   "size": 0, "nombre": os.path.basename(ruta) if ruta else "—"}
+        if db_info["existe"]:
+            db_info["size"] = os.path.getsize(ruta)
+        pa = _pa_config()
+        return render_template(
+            "sistema.html", db_info=db_info,
+            pa_configurado=bool(pa["username"] and pa["domain"] and pa["token"]),
+            pa_username=pa["username"], pa_domain=pa["domain"])
+
+    @app.route("/sistema/exportar-db")
+    @login_required
+    def exportar_db():
+        """Descarga directa del archivo SQLite como respaldo local."""
+        ruta = _db_path()
+        if not ruta or not os.path.isfile(ruta):
+            flash("No se encontró el archivo de base de datos para exportar.", "error")
+            return redirect(url_for("sistema"))
+        carpeta, nombre = os.path.split(ruta)
+        sello = date.today().isoformat()
+        descarga = f"respaldo_{os.path.splitext(nombre)[0]}_{sello}.db"
+        return send_from_directory(carpeta, nombre, as_attachment=True,
+                                   download_name=descarga)
+
+    @app.route("/sistema/importar-db", methods=["POST"])
+    @login_required
+    def importar_db():
+        """
+        Reemplaza la base de datos actual con un archivo .db subido. Antes de
+        sobrescribir hace una copia de seguridad automática y valida que el
+        archivo sea realmente una base SQLite (cabecera mágica).
+        """
+        if not request.form.get("confirmar"):
+            flash("Debes confirmar la casilla de seguridad para restaurar la BD.", "error")
+            return redirect(url_for("sistema"))
+
+        archivo = request.files.get("db_file")
+        if not archivo or not archivo.filename:
+            flash("No se seleccionó ningún archivo .db para importar.", "error")
+            return redirect(url_for("sistema"))
+        if not archivo.filename.lower().endswith(".db"):
+            flash("El archivo debe tener extensión .db (base SQLite).", "error")
+            return redirect(url_for("sistema"))
+
+        datos = archivo.read()
+        if not datos.startswith(b"SQLite format 3\x00"):
+            flash("El archivo no es una base de datos SQLite válida.", "error")
+            return redirect(url_for("sistema"))
+
+        ruta = _db_path()
+        if not ruta:
+            flash("La configuración actual no usa SQLite; no se puede restaurar.", "error")
+            return redirect(url_for("sistema"))
+
+        try:
+            # Cierra conexiones abiertas para poder reemplazar el archivo (Windows)
+            db.session.remove()
+            db.engine.dispose()
+            # Copia de seguridad de la BD actual antes de sobrescribir
+            if os.path.isfile(ruta):
+                respaldo = f"{ruta}.bak-{date.today().isoformat()}"
+                shutil.copyfile(ruta, respaldo)
+            with open(ruta, "wb") as fh:
+                fh.write(datos)
+            # Alinea el esquema por si la BD importada es de una versión anterior
+            db.create_all()
+            migrar_esquema()
+            db.session.commit()
+        except Exception as e:  # noqa: BLE001
+            flash(f"No se pudo restaurar la base de datos: {e}", "error")
+            return redirect(url_for("sistema"))
+
+        flash("Base de datos restaurada correctamente. Se guardó un respaldo de la anterior.", "ok")
+        return redirect(url_for("sistema"))
+
+    @app.route("/sistema/git-pull", methods=["POST"])
+    @login_required
+    def git_pull():
+        """Ejecuta 'git pull' en la carpeta del proyecto para sincronizar el código."""
+        try:
+            resultado = subprocess.run(
+                ["git", "pull"], cwd=app.root_path,
+                capture_output=True, text=True, timeout=120)
+            salida = (resultado.stdout or "") + (resultado.stderr or "")
+            salida = salida.strip() or "(sin salida)"
+            if resultado.returncode == 0:
+                flash(f"✅ Git pull ejecutado:\n{salida}", "ok")
+            else:
+                flash(f"⚠️ Git pull terminó con código {resultado.returncode}:\n{salida}", "error")
+        except FileNotFoundError:
+            flash("No se encontró 'git' en el sistema. Instálalo o usa la API de PythonAnywhere.", "error")
+        except subprocess.TimeoutExpired:
+            flash("El 'git pull' tardó demasiado y se canceló.", "error")
+        except Exception as e:  # noqa: BLE001
+            flash(f"Error al ejecutar git pull: {e}", "error")
+        return redirect(url_for("sistema"))
+
+    @app.route("/sistema/recargar-web", methods=["POST"])
+    @login_required
+    def recargar_web():
+        """
+        Recarga la aplicación web en PythonAnywhere vía su API, usando las
+        credenciales de las variables de entorno (PA_USERNAME/PA_DOMAIN/PA_API_TOKEN).
+        """
+        pa = _pa_config()
+        if not (pa["username"] and pa["domain"] and pa["token"]):
+            flash("Faltan variables de entorno de PythonAnywhere "
+                  "(PA_USERNAME, PA_DOMAIN, PA_API_TOKEN).", "error")
+            return redirect(url_for("sistema"))
+
+        url = (f"https://{pa['host']}/api/v0/user/{pa['username']}"
+               f"/webapps/{pa['domain']}/reload/")
+        req = urllib.request.Request(url, method="POST",
+                                     headers={"Authorization": f"Token {pa['token']}"})
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                codigo = resp.getcode()
+            if codigo in (200, 201):
+                flash(f"🔄 Aplicación web «{pa['domain']}» recargada en PythonAnywhere.", "ok")
+            else:
+                flash(f"PythonAnywhere respondió con código {codigo}.", "error")
+        except urllib.error.HTTPError as e:
+            flash(f"Error de la API de PythonAnywhere ({e.code}): {e.reason}.", "error")
+        except urllib.error.URLError as e:
+            flash(f"No se pudo contactar con PythonAnywhere: {e.reason}.", "error")
+        except Exception as e:  # noqa: BLE001
+            flash(f"Error al recargar la web: {e}", "error")
+        return redirect(url_for("sistema"))
 
     # Filtro para formatear plata en las plantillas (moneda: Bolivianos)
     @app.template_filter("money")

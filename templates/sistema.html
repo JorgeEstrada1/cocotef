@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% block titulo %}Sistema / Configuración{% endblock %}
+{% block contenido %}
+
+<div class="flex items-center gap-3 mb-6">
+  <span class="text-2xl">🔧</span>
+  <h1 class="text-2xl font-bold text-slate-100">Sistema / Configuración</h1>
+</div>
+
+<p class="text-sm text-slate-400 mb-6 max-w-3xl">
+  Mantenimiento del taller: respaldos de la base de datos, restauración de datos
+  entre tu equipo local y PythonAnywhere, y sincronización del código.
+</p>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+  <!-- ============ RESPALDO / EXPORTAR ============ -->
+  <div class="bg-card border border-edge rounded-xl shadow-lg p-5
+              ring-1 ring-cyan-500/20 shadow-cyan-500/5">
+    <h2 class="font-semibold text-slate-100 mb-1 flex items-center gap-2">
+      <span>📥</span> Respaldo de la base de datos
+    </h2>
+    <p class="text-xs text-slate-500 mb-4">
+      Descarga una copia completa de <b class="text-cyan-300">{{ db_info.nombre }}</b> para
+      guardarla localmente o migrarla a otro servidor.
+    </p>
+
+    <div class="bg-base border border-edge rounded-lg p-3 text-sm space-y-1 mb-4">
+      <div class="flex justify-between">
+        <span class="text-slate-500">Archivo</span>
+        <span class="text-slate-200 font-mono">{{ db_info.nombre }}</span>
+      </div>
+      <div class="flex justify-between">
+        <span class="text-slate-500">Tamaño</span>
+        <span class="text-slate-200">
+          {% if db_info.size >= 1048576 %}{{ (db_info.size / 1048576) | round(2) }} MB
+          {% else %}{{ (db_info.size / 1024) | round(1) }} KB{% endif %}
+        </span>
+      </div>
+      <div class="flex justify-between items-center">
+        <span class="text-slate-500">Estado</span>
+        {% if db_info.existe %}
+        <span class="text-xs px-2 py-0.5 rounded-md bg-teal-500/10 text-teal-300 border border-teal-500/30">● En línea</span>
+        {% else %}
+        <span class="text-xs px-2 py-0.5 rounded-md bg-rose-500/10 text-rose-300 border border-rose-500/30">No encontrada</span>
+        {% endif %}
+      </div>
+    </div>
+
+    <a href="{{ url_for('exportar_db') }}"
+       class="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-cyan-500 to-indigo-500
+              text-slate-900 font-semibold rounded-lg py-2.5 hover:opacity-90 transition
+              shadow-lg shadow-cyan-500/20">
+      📥 Exportar base de datos (.db)
+    </a>
+  </div>
+
+  <!-- ============ IMPORTAR / RESTAURAR ============ -->
+  <div class="bg-card border border-edge rounded-xl shadow-lg p-5
+              ring-1 ring-amber-500/20 shadow-amber-500/5">
+    <h2 class="font-semibold text-slate-100 mb-1 flex items-center gap-2">
+      <span>📤</span> Importar / Restaurar base de datos
+    </h2>
+    <p class="text-xs text-slate-500 mb-3">
+      Sube un archivo <b class="text-amber-300">.db</b> para reemplazar los datos actuales
+      (ideal para mover datos local ↔ PythonAnywhere).
+    </p>
+
+    <div class="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 mb-4">
+      <p class="text-xs text-amber-200 flex gap-2">
+        <span>⚠️</span>
+        <span><b>Acción destructiva.</b> Se reemplazará toda la base de datos actual.
+        Se guardará automáticamente una copia de seguridad (<code class="text-amber-300">.bak</code>) antes de sobrescribir.</span>
+      </p>
+    </div>
+
+    <form method="post" action="{{ url_for('importar_db') }}" enctype="multipart/form-data"
+          onsubmit="return confirm('¿Seguro que deseas REEMPLAZAR la base de datos actual? Esta acción no se puede deshacer (se guardará un respaldo).');"
+          class="space-y-3">
+      <input type="file" name="db_file" accept=".db" required
+             class="w-full text-sm text-slate-400 bg-base border border-edge rounded-lg cursor-pointer
+                    file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:cursor-pointer
+                    file:bg-amber-500 file:text-slate-900 file:font-semibold hover:file:opacity-90">
+      <label class="flex items-start gap-2 text-xs text-slate-300 cursor-pointer">
+        <input type="checkbox" name="confirmar" value="1" required
+               class="mt-0.5 rounded border-edge bg-base text-amber-500 focus:ring-amber-500/30">
+        Entiendo que esto reemplazará la base de datos actual y confirmo la restauración.
+      </label>
+      <button class="w-full flex items-center justify-center gap-2 bg-amber-500/90 hover:bg-amber-500
+                     text-slate-900 font-semibold rounded-lg py-2.5 transition">
+        📤 Importar y restaurar
+      </button>
+    </form>
+  </div>
+
+  <!-- ============ SINCRONIZAR CÓDIGO (GIT) ============ -->
+  <div class="bg-card border border-edge rounded-xl shadow-lg p-5
+              ring-1 ring-indigo-500/20 shadow-indigo-500/5">
+    <h2 class="font-semibold text-slate-100 mb-1 flex items-center gap-2">
+      <span>🔄</span> Sincronizar código (Git)
+    </h2>
+    <p class="text-xs text-slate-500 mb-4">
+      Ejecuta <code class="text-indigo-300">git pull</code> en el servidor para traer la última
+      versión del código desde el repositorio.
+    </p>
+    <form method="post" action="{{ url_for('git_pull') }}"
+          onsubmit="return confirm('¿Ejecutar git pull para actualizar el código?');">
+      <button class="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-500 to-cyan-500
+                     text-slate-900 font-semibold rounded-lg py-2.5 hover:opacity-90 transition
+                     shadow-lg shadow-indigo-500/20">
+        🔄 Sincronizar código con Git (git pull)
+      </button>
+    </form>
+  </div>
+
+  <!-- ============ RECARGAR WEB (PYTHONANYWHERE) ============ -->
+  <div class="bg-card border border-edge rounded-xl shadow-lg p-5
+              ring-1 ring-teal-500/20 shadow-teal-500/5">
+    <h2 class="font-semibold text-slate-100 mb-1 flex items-center gap-2">
+      <span>🚀</span> Recargar web (PythonAnywhere)
+    </h2>
+    <p class="text-xs text-slate-500 mb-3">
+      Reinicia la aplicación web en PythonAnywhere mediante su API para aplicar los
+      cambios recién sincronizados.
+    </p>
+
+    {% if pa_configurado %}
+    <div class="bg-base border border-edge rounded-lg p-3 text-xs space-y-1 mb-4">
+      <div class="flex justify-between"><span class="text-slate-500">Usuario</span>
+        <span class="text-slate-200 font-mono">{{ pa_username }}</span></div>
+      <div class="flex justify-between"><span class="text-slate-500">Dominio</span>
+        <span class="text-slate-200 font-mono">{{ pa_domain }}</span></div>
+      <div class="flex justify-between items-center"><span class="text-slate-500">API Token</span>
+        <span class="text-xs px-2 py-0.5 rounded-md bg-teal-500/10 text-teal-300 border border-teal-500/30">✓ Configurado</span></div>
+    </div>
+    <form method="post" action="{{ url_for('recargar_web') }}">
+      <button class="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-teal-500 to-cyan-500
+                     text-slate-900 font-semibold rounded-lg py-2.5 hover:opacity-90 transition
+                     shadow-lg shadow-teal-500/20">
+        🚀 Recargar aplicación web
+      </button>
+    </form>
+    {% else %}
+    <div class="bg-slate-500/10 border border-edge rounded-lg p-3 mb-3">
+      <p class="text-xs text-slate-400 mb-2 flex items-center gap-2">
+        <span class="text-xs px-2 py-0.5 rounded-md bg-slate-500/20 text-slate-300 border border-edge">No configurado</span>
+      </p>
+      <p class="text-xs text-slate-500">Define estas variables de entorno en PythonAnywhere para habilitar la recarga automática:</p>
+      <ul class="text-xs text-slate-400 font-mono mt-2 space-y-0.5">
+        <li>PA_USERNAME</li>
+        <li>PA_DOMAIN <span class="text-slate-600">(ej. tuusuario.pythonanywhere.com)</span></li>
+        <li>PA_API_TOKEN</li>
+      </ul>
+    </div>
+    <button disabled
+            class="w-full flex items-center justify-center gap-2 bg-base text-slate-600 border border-edge
+                   font-semibold rounded-lg py-2.5 cursor-not-allowed">
+      🚀 Recargar aplicación web
+    </button>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

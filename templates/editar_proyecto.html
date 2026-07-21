@@ -40,6 +40,43 @@
       <p id="gcode_status" class="text-xs mt-2 hidden"></p>
     </div>
 
+    <!-- Foto de la pieza (JPG / PNG / WEBP) -->
+    <div class="md:col-span-2 relative rounded-xl border border-dashed border-indigo-500/40 bg-base/60 p-3">
+      <div class="flex flex-wrap items-center gap-3">
+        {% if p.imagen_filename %}
+        <a href="{{ url_for('imagen_proyecto', filename=p.imagen_filename) }}" target="_blank"
+           title="Ver foto en tamaño completo">
+          <img src="{{ url_for('imagen_proyecto', filename=p.imagen_filename) }}" alt="Foto actual"
+               class="w-16 h-16 rounded-lg object-cover border border-indigo-500/40 shadow-lg shadow-indigo-500/20
+                      hover:ring-2 hover:ring-cyan-400/70 transition">
+        </a>
+        {% else %}
+        <span class="text-xl">📷</span>
+        {% endif %}
+        <div class="flex-1 min-w-[200px]">
+          <p class="text-sm font-medium text-slate-200">Foto del proyecto</p>
+          <p class="text-xs text-slate-500">
+            {% if p.imagen_filename %}Sube una imagen para <b class="text-indigo-300">reemplazar</b> la actual.
+            {% else %}Sube una imagen <b class="text-indigo-300">JPG, PNG o WEBP</b> (opcional).{% endif %}
+          </p>
+        </div>
+        <input type="file" id="imagen_file" name="imagen_file" accept=".jpg,.jpeg,.png,.webp,image/*"
+               class="text-sm text-slate-400 bg-card border border-edge rounded-lg cursor-pointer
+                      file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:cursor-pointer
+                      file:bg-gradient-to-r file:from-indigo-500 file:to-cyan-500 file:text-slate-900
+                      file:font-semibold hover:file:opacity-90">
+        <img id="imagen_preview" alt="Vista previa"
+             class="hidden w-16 h-16 rounded-lg object-cover border border-cyan-500/40">
+      </div>
+      {% if p.imagen_filename %}
+      <label class="flex items-center gap-2 text-xs text-slate-400 mt-2 cursor-pointer">
+        <input type="checkbox" name="quitar_imagen" value="1"
+               class="rounded border-edge bg-base text-rose-500 focus:ring-rose-500/30">
+        Quitar la foto actual (sin subir otra)
+      </label>
+      {% endif %}
+    </div>
+
     <label class="block">
       <span class="text-sm text-slate-400">Nombre de la pieza</span>
       <input name="nombre" value="{{ p.nombre }}" required class="{{ inp }}">
@@ -113,6 +150,19 @@
 </div>
 
 <script>
+// Vista previa de la nueva foto antes de guardar
+(function () {
+  const imgInput = document.getElementById("imagen_file");
+  const preview  = document.getElementById("imagen_preview");
+  if (!imgInput || !preview) return;
+  imgInput.addEventListener("change", function () {
+    const file = imgInput.files[0];
+    if (!file) { preview.classList.add("hidden"); return; }
+    preview.src = URL.createObjectURL(file);
+    preview.classList.remove("hidden");
+  });
+})();
+
 (function () {
   const input  = document.getElementById("gcode_file");
   const status = document.getElementById("gcode_status");

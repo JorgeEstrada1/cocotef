@@ -91,6 +91,7 @@ class Proyecto(db.Model):
     filamento_id = db.Column(db.Integer, db.ForeignKey("filamentos.id"))
     fecha_entrega = db.Column(db.Date)                        # fecha comprometida de entrega
     gcode_filename = db.Column(db.String(120))               # nombre del archivo G-code/3MF en disco
+    imagen_filename = db.Column(db.String(120))              # foto de la pieza (JPG/PNG/WEBP) en disco
 
     # Cobranza (adelantos / saldos). El proyecto ES la venta: unifica ambos módulos.
     precio_total = db.Column(db.Float, default=0.0)           # precio acordado del pedido

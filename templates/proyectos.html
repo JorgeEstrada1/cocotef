@@ -28,6 +28,24 @@
       <p id="gcode_status" class="text-xs mt-2 hidden"></p>
     </div>
 
+    <!-- Foto de la pieza (JPG / PNG / WEBP) -->
+    <div class="md:col-span-3 relative rounded-xl border border-dashed border-indigo-500/40 bg-base/60 p-3">
+      <div class="flex flex-wrap items-center gap-3">
+        <span class="text-xl">📷</span>
+        <div class="flex-1 min-w-[220px]">
+          <p class="text-sm font-medium text-slate-200">Foto del proyecto</p>
+          <p class="text-xs text-slate-500">Sube una imagen <b class="text-indigo-300">JPG, PNG o WEBP</b> de la pieza (opcional).</p>
+        </div>
+        <input type="file" id="imagen_file" name="imagen_file" accept=".jpg,.jpeg,.png,.webp,image/*"
+               class="text-sm text-slate-400 bg-card border border-edge rounded-lg cursor-pointer
+                      file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:cursor-pointer
+                      file:bg-gradient-to-r file:from-indigo-500 file:to-cyan-500 file:text-slate-900
+                      file:font-semibold hover:file:opacity-90">
+        <img id="imagen_preview" alt="Vista previa"
+             class="hidden w-14 h-14 rounded-lg object-cover border border-indigo-500/40 shadow-lg shadow-indigo-500/20">
+      </div>
+    </div>
+
     <input name="nombre" placeholder="Nombre de la pieza *" required class="{{ inp }}">
     <input name="cliente" placeholder="Cliente" class="{{ inp }}">
     <select name="estado" class="{{ inp }}">
@@ -59,6 +77,7 @@
   <table class="w-full text-sm">
     <thead class="bg-cardh text-slate-400 text-left">
       <tr>
+        <th class="p-3">Foto</th>
         <th class="p-3">Nombre</th>
         <th class="p-3">Cliente</th>
         <th class="p-3">Estado</th>
@@ -72,6 +91,19 @@
     <tbody>
       {% for p in proyectos %}
       <tr class="border-t border-edge hover:bg-cardh/50">
+        <td class="p-3">
+          {% if p.imagen_filename %}
+          <img src="{{ url_for('imagen_proyecto', filename=p.imagen_filename) }}"
+               alt="Foto de {{ p.nombre }}"
+               onclick="verImagen(this.src, {{ p.nombre | tojson }})"
+               class="w-12 h-12 rounded-lg object-cover border border-edge cursor-pointer
+                      hover:ring-2 hover:ring-cyan-400/70 transition"
+               title="Click para ampliar">
+          {% else %}
+          <div class="w-12 h-12 rounded-lg bg-base border border-dashed border-edge
+                      flex items-center justify-center text-slate-600 text-lg">🖼️</div>
+          {% endif %}
+        </td>
         <td class="p-3 font-medium text-slate-200">
           <span class="inline-flex items-center gap-1.5">
             {{ p.nombre }}
@@ -132,13 +164,51 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="8" class="p-4 text-center text-slate-500">Sin proyectos aún.</td></tr>
+      <tr><td colspan="9" class="p-4 text-center text-slate-500">Sin proyectos aún.</td></tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
 
+<!-- Lightbox: ver foto en tamaño completo -->
+<div id="lightbox" onclick="cerrarImagen()"
+     class="fixed inset-0 z-50 hidden items-center justify-center bg-black/80 backdrop-blur-sm p-4 cursor-zoom-out">
+  <div class="max-w-4xl w-full">
+    <p id="lightbox_titulo" class="text-center text-slate-200 mb-3 font-medium"></p>
+    <img id="lightbox_img" src="" alt="Foto ampliada"
+         class="mx-auto max-h-[80vh] rounded-xl border border-cyan-500/40 shadow-2xl shadow-cyan-500/20">
+    <p class="text-center text-slate-500 text-xs mt-3">Click en cualquier parte para cerrar</p>
+  </div>
+</div>
+
 <script>
+function verImagen(src, titulo) {
+  const lb = document.getElementById("lightbox");
+  document.getElementById("lightbox_img").src = src;
+  document.getElementById("lightbox_titulo").textContent = titulo || "";
+  lb.classList.remove("hidden");
+  lb.classList.add("flex");
+}
+function cerrarImagen() {
+  const lb = document.getElementById("lightbox");
+  lb.classList.add("hidden");
+  lb.classList.remove("flex");
+}
+document.addEventListener("keydown", e => { if (e.key === "Escape") cerrarImagen(); });
+
+// Vista previa de la foto antes de subir (formulario de nuevo proyecto)
+(function () {
+  const imgInput = document.getElementById("imagen_file");
+  const preview  = document.getElementById("imagen_preview");
+  if (!imgInput || !preview) return;
+  imgInput.addEventListener("change", function () {
+    const file = imgInput.files[0];
+    if (!file) { preview.classList.add("hidden"); return; }
+    preview.src = URL.createObjectURL(file);
+    preview.classList.remove("hidden");
+  });
+})();
+
 (function () {
   const input  = document.getElementById("gcode_file");
   const status = document.getElementById("gcode_status");

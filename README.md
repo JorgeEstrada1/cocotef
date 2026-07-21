@@ -1,4 +1,4 @@
-# 🖨️ Taller 3D — Gestión y control financiero · v1.5
+# 🖨️ Taller 3D — Gestión y control financiero · v1.7
 
 Sistema local (Flask + SQLite) para controlar impresiones, costos, inventario y
 "la plata" de un emprendimiento de impresión 3D manejado por 2 socios. Con
@@ -58,6 +58,27 @@ versión anterior, **al arrancar se migra automáticamente** (añade columnas nu
 con `ALTER TABLE` y crea tablas nuevas sin borrar datos ni relaciones).
 
 ---
+
+## 🆕 Novedades de la v1.7
+
+### A. 📷 Fotos en Proyectos / Ventas
+- Cada proyecto puede tener una **foto de la pieza** (JPG, PNG, WEBP o JPEG).
+- Se sube desde los formularios de **crear** y **editar** proyecto (con vista previa
+  instantánea). El archivo se guarda en `instance/uploads/imagenes/` con un
+  nombre **UUID único** (vía `secure_filename` + `uuid`) para evitar colisiones.
+- En la tabla de proyectos se muestra una **miniatura**; al hacer click se abre en
+  **tamaño completo** (lightbox). Al eliminar el proyecto —o reemplazar/quitar la
+  foto— el archivo físico también se borra del disco.
+
+### B. 🔧 Sistema / Configuración (mantenimiento y despliegue)
+Nueva pestaña **🔧 Sistema** en la barra de navegación con:
+- **📥 Exportar base de datos (.db):** descarga directa del SQLite como respaldo.
+- **📤 Importar / Restaurar:** sube un `.db` para reemplazar los datos (ideal para
+  migrar local ↔ PythonAnywhere). Valida la cabecera SQLite, exige **confirmación**
+  de seguridad y crea un **respaldo `.bak` automático** antes de sobrescribir.
+- **🔄 Sincronizar código (git pull):** ejecuta `git pull` en el servidor.
+- **🚀 Recargar web (PythonAnywhere):** reinicia la app vía la API de PythonAnywhere
+  usando las variables de entorno `PA_USERNAME`, `PA_DOMAIN` y `PA_API_TOKEN`.
 
 ## 💱 Novedades de la v1.5
 
