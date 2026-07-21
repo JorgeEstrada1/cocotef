@@ -21,7 +21,8 @@ from flask_bcrypt import Bcrypt
 from sqlalchemy import extract, inspect, text
 
 from config import Config
-from models import db, User, Filamento, Proyecto, Venta, Gasto
+from models import (db, User, Filamento, Proyecto, Venta, Gasto,
+                    Liquidacion, Inversion)
 
 MESES = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
          "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
@@ -201,6 +202,13 @@ def calcular_balance(anio=None, mes=None):
                        extract("month", Gasto.fecha) == mes)
     proyectos, gastos = pq.all(), gq.all()
 
+    # Liquidaciones (transferencias entre socios) del mismo periodo. NO son
+    # ingresos ni gastos: solo reacomodan el efectivo en mano de cada socio.
+    lq = Liquidacion.query
+    if anio and mes:
+        lq = lq.filter(Liquidacion.anio == anio, Liquidacion.mes == mes)
+    liquidaciones = lq.all()
+
     # Solo cuentan los pedidos entregados o cancelados en su totalidad
     total_ingresos = sum(p.ingreso_reconocido for p in proyectos)
     total_gastos = sum(g.monto for g in gastos)
@@ -213,16 +221,34 @@ def calcular_balance(anio=None, mes=None):
     for u in usuarios:
         cobrado = sum(p.ingreso_reconocido for p in proyectos if p.usuario_id == u.id)
         aporte = sum(g.monto for g in gastos if g.usuario_id == u.id)
-        en_mano = cobrado - aporte
+        # Efecto de las liquidaciones ya registradas: recibió suma, pagó resta
+        recibido = sum(l.monto for l in liquidaciones if l.receptor_id == u.id)
+        pagado = sum(l.monto for l in liquidaciones if l.pagador_id == u.id)
+        en_mano = cobrado - aporte + recibido - pagado
         ajuste = parte_justa - en_mano
         balance_socios.append({
             "usuario": u,
             "cobrado": cobrado,
             "aporte": aporte,
+            "liquidado": recibido - pagado,
             "en_mano": en_mano,
             "parte_justa": parte_justa,
             "ajuste": ajuste,
         })
+
+    # Sugerencia para 'quedar a mano': quien tiene de más le paga a quien tiene
+    # de menos, por el monto exacto del ajuste. None si ya están parejos.
+    liquidacion_sugerida = None
+    if balance_socios:
+        receptor = max(balance_socios, key=lambda s: s["ajuste"])   # ajuste > 0 → le deben
+        pagador = min(balance_socios, key=lambda s: s["ajuste"])    # ajuste < 0 → debe
+        monto = round(min(receptor["ajuste"], -pagador["ajuste"]), 2)
+        if receptor["usuario"].id != pagador["usuario"].id and monto > 0.5:
+            liquidacion_sugerida = {
+                "pagador": pagador["usuario"],
+                "receptor": receptor["usuario"],
+                "monto": monto,
+            }
 
     return {
         "total_ingresos": total_ingresos,
@@ -230,6 +256,7 @@ def calcular_balance(anio=None, mes=None):
         "ganancia_neta": ganancia_neta,
         "parte_justa": parte_justa,
         "socios": balance_socios,
+        "liquidacion_sugerida": liquidacion_sugerida,
     }
 
 
@@ -682,10 +709,10 @@ def registrar_rutas(app):
         rows = [[
             v.fecha, v.descripcion or "", v.metodo_pago,
             v.usuario.nombre if v.usuario else "",
-            v.proyecto.nombre if v.proyecto else "", v.monto
+            v.proyecto.nombre if v.proyecto else "", f"Bs. {v.monto:,.2f}"
         ] for v in filas]
         return _csv_response(f"ventas_{per['periodo']}.csv",
-                             ["Fecha", "Descripción", "Método", "Cobró", "Proyecto", "Monto"],
+                             ["Fecha", "Descripción", "Método", "Cobró", "Proyecto", "Monto (Bs.)"],
                              rows)
 
     # ---------- Gastos ----------
@@ -756,10 +783,10 @@ def registrar_rutas(app):
             .order_by(Gasto.fecha.asc(), Gasto.id.asc()).all()
         rows = [[
             g.fecha, g.categoria, g.descripcion or "",
-            g.usuario.nombre if g.usuario else "", g.monto
+            g.usuario.nombre if g.usuario else "", f"Bs. {g.monto:,.2f}"
         ] for g in filas]
         return _csv_response(f"gastos_{per['periodo']}.csv",
-                             ["Fecha", "Categoría", "Descripción", "Pagó", "Monto"],
+                             ["Fecha", "Categoría", "Descripción", "Pagó", "Monto (Bs.)"],
                              rows)
 
     # ---------- Balance / Reparto ----------
@@ -770,13 +797,99 @@ def registrar_rutas(app):
         return render_template("balance.html",
                                bal=calcular_balance(per["anio"], per["mes"]), per=per)
 
-    # Filtro para formatear plata en las plantillas
+    @app.route("/balance/liquidar", methods=["POST"])
+    @login_required
+    def liquidar_balance():
+        """
+        Registra la transferencia entre socios que deja el ajuste del mes en Bs. 0.
+        Recalcula el ajuste en el servidor (no confía en el cliente) y crea la
+        Liquidacion correspondiente. No toca ingresos ni gastos.
+        """
+        anio, mes = parse_periodo(request.form.get("periodo"))
+        bal = calcular_balance(anio, mes)
+        sug = bal.get("liquidacion_sugerida")
+        if not sug:
+            flash("Las cuentas de este mes ya están a mano.", "ok")
+            return redirect(url_for("balance", periodo=periodo_str(anio, mes)))
+        db.session.add(Liquidacion(
+            anio=anio, mes=mes, fecha=date.today(), monto=sug["monto"],
+            pagador_id=sug["pagador"].id, receptor_id=sug["receptor"].id,
+        ))
+        db.session.commit()
+        flash(f"{sug['pagador'].nombre} le pagó "
+              f"Bs. {sug['monto']:,.0f} a {sug['receptor'].nombre}. "
+              f"Cuentas saldadas ✔", "ok")
+        return redirect(url_for("balance", periodo=periodo_str(anio, mes)))
+
+    # ---------- Deudas e Inversiones de Capital (módulo independiente) ----------
+    @app.route("/inversiones")
+    @login_required
+    def inversiones():
+        lista = Inversion.query.order_by(Inversion.fecha.desc(), Inversion.id.desc()).all()
+        total_activos = sum(i.monto_total or 0 for i in lista)
+        deuda_abierta = sum(i.deuda_pendiente or 0 for i in lista if i.estado == "Pendiente")
+        return render_template("inversiones.html", inversiones=lista,
+                               total_activos=total_activos, deuda_abierta=deuda_abierta,
+                               estados=Inversion.ESTADOS)
+
+    @app.route("/inversiones/nueva", methods=["POST"])
+    @login_required
+    def nueva_inversion():
+        f = request.form
+        aporte_j = float(f.get("aporte_jorge") or 0)
+        aporte_t = float(f.get("aporte_tefi") or 0)
+        deuda = Inversion.deuda_inicial(aporte_j, aporte_t)
+        inv = Inversion(
+            descripcion=f.get("descripcion", "").strip(),
+            monto_total=float(f.get("monto_total") or 0),
+            aporte_jorge=aporte_j,
+            aporte_tefi=aporte_t,
+            deuda_pendiente=deuda,
+            estado="Saldada" if deuda <= 0 else "Pendiente",
+            fecha=_parse_fecha(f.get("fecha")),
+        )
+        if not inv.descripcion:
+            flash("La descripción de la inversión es obligatoria.", "error")
+        else:
+            db.session.add(inv)
+            db.session.commit()
+            flash("Inversión registrada.", "ok")
+        return redirect(url_for("inversiones"))
+
+    @app.route("/inversiones/<int:iid>/abono", methods=["POST"])
+    @login_required
+    def abonar_inversion(iid):
+        inv = Inversion.query.get_or_404(iid)
+        monto = float(request.form.get("monto") or 0)
+        if monto <= 0:
+            flash("El abono debe ser mayor a 0.", "error")
+            return redirect(url_for("inversiones"))
+        inv.deuda_pendiente = round(max((inv.deuda_pendiente or 0) - monto, 0.0), 2)
+        if inv.deuda_pendiente <= 0:
+            inv.deuda_pendiente = 0.0
+            inv.estado = "Saldada"
+            flash(f"Deuda de «{inv.descripcion}» saldada por completo ✔", "ok")
+        else:
+            flash(f"Abono de Bs. {monto:,.0f} registrado. "
+                  f"Saldo restante: Bs. {inv.deuda_pendiente:,.0f}.", "ok")
+        db.session.commit()
+        return redirect(url_for("inversiones"))
+
+    @app.route("/inversiones/<int:iid>/eliminar", methods=["POST"])
+    @login_required
+    def eliminar_inversion(iid):
+        db.session.delete(Inversion.query.get_or_404(iid))
+        db.session.commit()
+        flash("Inversión eliminada.", "ok")
+        return redirect(url_for("inversiones"))
+
+    # Filtro para formatear plata en las plantillas (moneda: Bolivianos)
     @app.template_filter("money")
     def money(v):
         try:
-            return "${:,.0f}".format(float(v or 0))
+            return "Bs. {:,.0f}".format(float(v or 0))
         except (ValueError, TypeError):
-            return "$0"
+            return "Bs. 0"
 
 
 app = crear_app()

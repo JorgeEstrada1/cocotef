@@ -208,14 +208,14 @@
       plugins: {
         legend: { display: false },
         tooltip: {
-          callbacks: { label: (c) => "$" + c.parsed.y.toLocaleString("es-CO") }
+          callbacks: { label: (c) => "Bs. " + c.parsed.y.toLocaleString("es-CO") }
         }
       },
       scales: {
         y: {
           beginAtZero: true,
           grid: { color: "#232c42" },
-          ticks: { color: "#94a3b8", callback: (v) => "$" + v.toLocaleString("es-CO") }
+          ticks: { color: "#94a3b8", callback: (v) => "Bs. " + v.toLocaleString("es-CO") }
         },
         x: {
           grid: { display: false },

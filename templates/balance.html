@@ -60,9 +60,80 @@
   {% endfor %}
 </div>
 
+<!-- ===================== SALDAR CUENTAS ENTRE SOCIOS ===================== -->
+{% if bal.liquidacion_sugerida %}
+{% set sug = bal.liquidacion_sugerida %}
+<div class="mt-6 relative overflow-hidden bg-gradient-to-r from-teal-950/40 to-cyan-950/30 border border-teal-500/30 rounded-2xl shadow-lg p-5">
+  <div class="flex flex-wrap items-center gap-4">
+    <span class="text-3xl">🤝</span>
+    <div class="flex-1 min-w-[220px]">
+      <p class="font-semibold text-slate-100">Las cuentas del mes no están parejas</p>
+      <p class="text-sm text-slate-300">
+        Para quedar a mano, <b class="text-rose-300">{{ sug.pagador.nombre }}</b> debe pagarle
+        <b class="text-teal-300">{{ sug.monto | money }}</b> a
+        <b class="text-teal-300">{{ sug.receptor.nombre }}</b>.
+      </p>
+    </div>
+    <button type="button"
+            onclick="document.getElementById('modalLiquidar').classList.remove('hidden')"
+            class="shrink-0 bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-900 font-semibold rounded-lg px-4 py-2.5 hover:opacity-90 transition">
+      🤝 Saldar Cuentas / Registrar Pago a Socio
+    </button>
+  </div>
+</div>
+
+<!-- Modal de confirmación -->
+<div id="modalLiquidar" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+  <div class="bg-card border border-edge rounded-2xl shadow-2xl max-w-md w-full p-6">
+    <h3 class="text-lg font-bold text-slate-100 mb-1 flex items-center gap-2">🤝 Confirmar pago entre socios</h3>
+    <p class="text-sm text-slate-400 mb-4">Se registrará una transferencia para dejar el ajuste de {{ per.periodo_label }} en Bs. 0. Esto <b>no</b> afecta ingresos ni gastos.</p>
+
+    <div class="bg-base border border-edge rounded-xl p-4 space-y-3 mb-5">
+      <div class="flex items-center justify-between">
+        <span class="text-sm text-slate-400">Paga</span>
+        <span class="inline-flex items-center gap-1.5 font-semibold text-rose-300">
+          <span class="w-2.5 h-2.5 rounded-full" style="background: {{ sug.pagador.color }}"></span>
+          {{ sug.pagador.nombre }}
+        </span>
+      </div>
+      <div class="flex items-center justify-between">
+        <span class="text-sm text-slate-400">Recibe</span>
+        <span class="inline-flex items-center gap-1.5 font-semibold text-teal-300">
+          <span class="w-2.5 h-2.5 rounded-full" style="background: {{ sug.receptor.color }}"></span>
+          {{ sug.receptor.nombre }}
+        </span>
+      </div>
+      <div class="flex items-center justify-between border-t border-edge pt-3">
+        <span class="text-sm text-slate-400">Monto exacto</span>
+        <span class="text-xl font-bold text-teal-400">{{ sug.monto | money }}</span>
+      </div>
+    </div>
+
+    <form method="post" action="{{ url_for('liquidar_balance') }}" class="flex gap-3">
+      <input type="hidden" name="periodo" value="{{ per.periodo }}">
+      <button type="button"
+              onclick="document.getElementById('modalLiquidar').classList.add('hidden')"
+              class="flex-1 px-4 py-2 rounded-lg bg-base border border-edge text-slate-300 hover:bg-cardh transition">
+        Cancelar
+      </button>
+      <button type="submit"
+              class="flex-1 bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-900 font-semibold rounded-lg px-4 py-2 hover:opacity-90 transition">
+        Confirmar pago
+      </button>
+    </form>
+  </div>
+</div>
+{% else %}
+<div class="mt-6 bg-teal-500/10 border border-teal-500/30 rounded-2xl p-5 flex items-center gap-3">
+  <span class="text-2xl">✅</span>
+  <p class="text-teal-200 text-sm">Las cuentas de <b class="text-teal-300">{{ per.periodo_label }}</b> ya están a mano. No hay pagos pendientes entre socios.</p>
+</div>
+{% endif %}
+<!-- =================== FIN SALDAR CUENTAS =================== -->
+
 <p class="text-xs text-slate-500 mt-6">
   El reparto asume ganancias divididas equitativamente. "En mano" = ingresos reconocidos − gastos pagados.
-  Un pedido solo suma como ingreso cuando está <b>Entregado</b> o su saldo pendiente es <b>$0</b>.
+  Un pedido solo suma como ingreso cuando está <b>Entregado</b> o su saldo pendiente es <b>Bs. 0</b>.
   El ajuste iguala a ambos socios al 50% de la ganancia neta.
 </p>
 {% endblock %}

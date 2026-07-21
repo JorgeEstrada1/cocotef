@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block titulo %}Deudas e Inversiones{% endblock %}
+{% block contenido %}
+{% set inp = "bg-base border border-edge rounded-lg px-3 py-2 text-slate-100 placeholder-slate-600 focus:border-teal-400 focus:ring-2 focus:ring-teal-500/20 outline-none" %}
+
+<div class="flex items-center gap-3 mb-2">
+  <span class="text-2xl">🏦</span>
+  <h1 class="text-2xl font-bold text-slate-100">Deudas e Inversiones de Capital</h1>
+</div>
+<p class="text-sm text-slate-400 mb-6">
+  Módulo <b class="text-cyan-300">100% independiente</b> de la operación: estas cifras
+  <b>no</b> se mezclan con ingresos, gastos ni la gráfica financiera mensual. Solo registran
+  el capital invertido en activos y la deuda entre socios para quedar 50/50 en la propiedad.
+</p>
+
+<!-- Resumen -->
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+  <div class="bg-card border border-edge rounded-xl shadow-lg p-5">
+    <p class="text-sm text-slate-400">Total invertido en activos</p>
+    <p class="text-2xl font-bold text-cyan-400">{{ total_activos | money }}</p>
+  </div>
+  <div class="bg-card border border-edge rounded-xl shadow-lg p-5">
+    <p class="text-sm text-slate-400">Deuda pendiente entre socios</p>
+    <p class="text-2xl font-bold {{ 'text-amber-300' if deuda_abierta > 0 else 'text-teal-400' }}">
+      {{ deuda_abierta | money }}
+    </p>
+  </div>
+</div>
+
+<!-- Nueva inversión -->
+<div class="bg-card border border-edge rounded-xl shadow-lg p-5 mb-6">
+  <h2 class="font-semibold mb-4 text-slate-200">Registrar inversión / compra de activo</h2>
+  <form method="post" action="{{ url_for('nueva_inversion') }}"
+        class="grid grid-cols-1 md:grid-cols-3 gap-3">
+    <input name="descripcion" placeholder="Descripción (ej. Compra Bambu Lab A2) *" required
+           class="{{ inp }} md:col-span-2">
+    <input name="monto_total" type="number" step="0.01" min="0" placeholder="Monto total (Bs.)" class="{{ inp }}">
+    <label class="text-xs text-slate-500 flex flex-col gap-1">Aporte de Jorge (Bs.)
+      <input name="aporte_jorge" type="number" step="0.01" min="0" value="0" class="{{ inp }}">
+    </label>
+    <label class="text-xs text-slate-500 flex flex-col gap-1">Aporte de Tefi (Bs.)
+      <input name="aporte_tefi" type="number" step="0.01" min="0" value="0" class="{{ inp }}">
+    </label>
+    <label class="text-xs text-slate-500 flex flex-col gap-1">Fecha
+      <input name="fecha" type="date" class="{{ inp }}">
+    </label>
+    <button class="md:col-span-3 bg-gradient-to-r from-cyan-500 to-indigo-500 text-slate-900 font-semibold rounded-lg py-2 hover:opacity-90 transition">
+      Guardar inversión
+    </button>
+  </form>
+  <p class="text-xs text-slate-500 mt-2">
+    La deuda para quedar 50/50 se calcula como la mitad de la diferencia entre ambos aportes.
+  </p>
+</div>
+
+<!-- Tabla -->
+<div class="bg-card border border-edge rounded-xl shadow-lg overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead class="bg-cardh text-slate-400 text-left">
+      <tr>
+        <th class="p-3">Inversión</th>
+        <th class="p-3">Fecha</th>
+        <th class="p-3 text-right">Monto total</th>
+        <th class="p-3 text-right">Aporte Jorge</th>
+        <th class="p-3 text-right">Aporte Tefi</th>
+        <th class="p-3">Deuda para quedar 50/50</th>
+        <th class="p-3">Estado</th>
+        <th class="p-3">Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for i in inversiones %}
+      <tr class="border-t border-edge hover:bg-cardh/50">
+        <td class="p-3 font-medium text-slate-200">{{ i.descripcion }}</td>
+        <td class="p-3 text-slate-400">{{ i.fecha.strftime('%d/%m/%Y') if i.fecha else '—' }}</td>
+        <td class="p-3 text-right text-cyan-300">{{ i.monto_total | money }}</td>
+        <td class="p-3 text-right text-slate-300">{{ i.aporte_jorge | money }}</td>
+        <td class="p-3 text-right text-slate-300">{{ i.aporte_tefi | money }}</td>
+        <td class="p-3">
+          {% if i.estado == 'Saldada' or i.deuda_pendiente <= 0 %}
+            <span class="text-teal-300">— sin deuda —</span>
+          {% elif i.deudor %}
+            <div class="text-slate-200">
+              <b class="text-rose-300">{{ i.deudor }}</b> le debe
+              <b class="text-amber-300">{{ i.deuda_pendiente | money }}</b>
+              a <b class="text-teal-300">{{ i.acreedor }}</b>
+            </div>
+            {% if i.abonado > 0 %}
+            <div class="text-xs text-slate-500 mt-0.5">Abonado: {{ i.abonado | money }} de {{ i.deuda_total | money }}</div>
+            {% endif %}
+          {% else %}
+            <span class="text-teal-300">— parejos —</span>
+          {% endif %}
+        </td>
+        <td class="p-3">
+          {% if i.estado == 'Saldada' %}
+            <span class="inline-block text-xs px-2 py-0.5 rounded-md bg-teal-500/10 text-teal-300 border border-teal-500/30">✓ Saldada</span>
+          {% else %}
+            <span class="inline-block text-xs px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-300 border border-amber-500/40">● Pendiente</span>
+          {% endif %}
+        </td>
+        <td class="p-3">
+          <div class="flex items-center gap-2">
+            {% if i.estado != 'Saldada' and i.deuda_pendiente > 0 %}
+            <form method="post" action="{{ url_for('abonar_inversion', iid=i.id) }}"
+                  class="flex items-center gap-1">
+              <input name="monto" type="number" step="0.01" min="0" max="{{ i.deuda_pendiente }}"
+                     placeholder="Abono" required
+                     class="w-24 bg-base border border-edge rounded px-2 py-1 text-slate-100 text-xs focus:border-teal-400 outline-none">
+              <button class="text-xs px-2 py-1 rounded-md bg-teal-500/15 text-teal-300 border border-teal-500/30 hover:bg-teal-500/25 transition">
+                Abonar
+              </button>
+            </form>
+            {% endif %}
+            <form method="post" action="{{ url_for('eliminar_inversion', iid=i.id) }}"
+                  onsubmit="return confirm('¿Eliminar esta inversión?')">
+              <button class="text-rose-400 hover:text-rose-300 text-xs">Eliminar</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8" class="p-4 text-center text-slate-500">Aún no hay inversiones registradas.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

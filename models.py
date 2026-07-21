@@ -166,6 +166,93 @@ class Venta(db.Model):
         return f"<Venta ${self.monto}>"
 
 
+class Liquidacion(db.Model):
+    """
+    Transferencia de dinero entre socios para 'quedar a mano' en el reparto de
+    un mes. NO es ingreso ni gasto: solo mueve efectivo de un socio a otro para
+    que el ajuste del periodo quede en Bs. 0. Afecta el 'en mano' de cada socio
+    en calcular_balance(), nunca la ganancia neta ni la gráfica financiera.
+    """
+    __tablename__ = "liquidaciones"
+
+    id = db.Column(db.Integer, primary_key=True)
+    anio = db.Column(db.Integer, nullable=False)
+    mes = db.Column(db.Integer, nullable=False)
+    fecha = db.Column(db.Date, default=date.today)
+    monto = db.Column(db.Float, nullable=False)
+
+    pagador_id = db.Column(db.Integer, db.ForeignKey("usuarios.id"))   # quién paga (tenía de más)
+    receptor_id = db.Column(db.Integer, db.ForeignKey("usuarios.id"))  # quién recibe (tenía de menos)
+
+    pagador = db.relationship("User", foreign_keys=[pagador_id])
+    receptor = db.relationship("User", foreign_keys=[receptor_id])
+
+    def __repr__(self):
+        return f"<Liquidacion {self.monto} {self.anio}-{self.mes}>"
+
+
+class Inversion(db.Model):
+    """
+    Deuda de capital / inversión en activos (ej. una impresora). Es un módulo
+    100% INDEPENDIENTE de la operación: no toca ingresos, gastos ni la gráfica
+    financiera mensual. Solo registra cuánto puso cada socio en un activo y la
+    deuda resultante para quedar 50/50 en la propiedad del mismo.
+    """
+    __tablename__ = "inversiones"
+
+    ESTADOS = ["Pendiente", "Saldada"]
+
+    id = db.Column(db.Integer, primary_key=True)
+    descripcion = db.Column(db.String(160), nullable=False)   # "Compra Bambu Lab A2"
+    monto_total = db.Column(db.Float, default=0.0)            # costo del activo (Bs.)
+    aporte_jorge = db.Column(db.Float, default=0.0)           # lo que puso Jorge (Bs.)
+    aporte_tefi = db.Column(db.Float, default=0.0)            # lo que puso Tefi (Bs.)
+    deuda_pendiente = db.Column(db.Float, default=0.0)        # saldo que falta para quedar 50/50
+    estado = db.Column(db.String(20), default="Pendiente")
+    fecha = db.Column(db.Date, default=date.today)
+
+    @staticmethod
+    def deuda_inicial(aporte_jorge, aporte_tefi):
+        """Deuda para igualar aportes al 50/50 = mitad de la diferencia aportada."""
+        return round(abs((aporte_jorge or 0.0) - (aporte_tefi or 0.0)) / 2, 2)
+
+    @property
+    def total_aportado(self):
+        return round((self.aporte_jorge or 0.0) + (self.aporte_tefi or 0.0), 2)
+
+    @property
+    def deudor(self):
+        """Nombre del socio que aportó de menos (debe al otro). None si están parejos."""
+        if (self.aporte_jorge or 0.0) < (self.aporte_tefi or 0.0):
+            return "Jorge"
+        if (self.aporte_tefi or 0.0) < (self.aporte_jorge or 0.0):
+            return "Tefi"
+        return None
+
+    @property
+    def acreedor(self):
+        """Socio que aportó de más (le deben)."""
+        d = self.deudor
+        if d == "Jorge":
+            return "Tefi"
+        if d == "Tefi":
+            return "Jorge"
+        return None
+
+    @property
+    def deuda_total(self):
+        """Deuda original (para mostrar el progreso del abono)."""
+        return self.deuda_inicial(self.aporte_jorge, self.aporte_tefi)
+
+    @property
+    def abonado(self):
+        """Cuánto se ha abonado ya de la deuda."""
+        return round(max(self.deuda_total - (self.deuda_pendiente or 0.0), 0.0), 2)
+
+    def __repr__(self):
+        return f"<Inversion {self.descripcion} ({self.estado})>"
+
+
 class Gasto(db.Model):
     """Egreso: filamento, cajas, envíos, luz, etc."""
     __tablename__ = "gastos"
