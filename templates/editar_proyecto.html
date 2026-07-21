@@ -85,9 +85,25 @@
         {% endfor %}
       </select>
     </label>
-    <div class="md:col-span-2 bg-cardh border border-edge rounded-lg p-3 text-sm text-slate-300">
-      Costo de filamento actual: <b class="text-teal-400">{{ p.costo_filamento | money }}</b>
-      <span class="text-slate-500">(se recalcula al guardar según peso y filamento)</span>
+    <label class="block">
+      <span class="text-sm text-slate-400">Precio total ($)</span>
+      <input name="precio_total" type="number" step="0.01" min="0" value="{{ p.precio_total or 0 }}" class="{{ inp }}">
+    </label>
+    <label class="block">
+      <span class="text-sm text-slate-400">Adelanto cobrado ($)</span>
+      <input name="adelanto" type="number" step="0.01" min="0" value="{{ p.adelanto or 0 }}" class="{{ inp }}">
+    </label>
+    <div class="md:col-span-2 bg-cardh border border-edge rounded-lg p-3 text-sm text-slate-300 space-y-1">
+      <div>Costo de filamento actual: <b class="text-teal-400">{{ p.costo_filamento | money }}</b>
+        <span class="text-slate-500">(se recalcula al guardar según peso y filamento)</span></div>
+      <div>Saldo pendiente:
+        {% if p.pagado_completo %}
+          <b class="text-teal-300">✓ Pagado en su totalidad</b>
+        {% else %}
+          <b class="text-amber-300">{{ p.saldo_pendiente | money }}</b>
+        {% endif %}
+        <span class="text-slate-500">· el ingreso se reconoce al entregar o al saldar el pedido.</span>
+      </div>
     </div>
     <div class="md:col-span-2 flex gap-3">
       <button class="bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-900 font-semibold rounded-lg px-5 py-2 hover:opacity-90 transition">Guardar cambios</button>

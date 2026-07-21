@@ -94,6 +94,10 @@ def migrar_esquema():
             conn.execute(text("ALTER TABLE proyectos ADD COLUMN fecha_entrega DATE"))
         if "gcode_filename" not in proy_cols:
             conn.execute(text("ALTER TABLE proyectos ADD COLUMN gcode_filename VARCHAR(120)"))
+        if "precio_total" not in proy_cols:
+            conn.execute(text("ALTER TABLE proyectos ADD COLUMN precio_total FLOAT DEFAULT 0"))
+        if "adelanto" not in proy_cols:
+            conn.execute(text("ALTER TABLE proyectos ADD COLUMN adelanto FLOAT DEFAULT 0"))
 
 
 def migrar_y_sembrar_usuarios():
@@ -172,27 +176,33 @@ def calcular_balance(anio=None, mes=None):
     """
     Devuelve el resumen financiero global y el balance por socio.
 
+    Regla contable (unificación Proyectos/Ventas):
+      - El ingreso de un pedido SOLO se reconoce cuando está 'Entregado' o su
+        saldo pendiente es 0 (pagado en su totalidad). Los adelantos/pagos
+        parciales no se suman hasta entonces (ver Proyecto.ingreso_reconocido).
+
     Regla de reparto:
-      - Ganancia neta total = Ingresos - Gastos
+      - Ganancia neta total = Ingresos reconocidos - Gastos
       - Cada socio tiene derecho al 50% de la ganancia neta.
       - 'Aporte' de un socio = gastos que pagó de su bolsillo.
-      - 'Cobrado' de un socio = ventas que recibió.
+      - 'Cobrado' de un socio = ingresos reconocidos de los pedidos que registró.
       - 'En mano' = cobrado - aporte  (efectivo real que tiene ahora)
       - 'Ajuste'  = lo que debería tener (50% ganancia) - lo que tiene en mano.
                     Positivo = le deben plata / Negativo = debe plata.
     """
     usuarios = User.query.all()
 
-    # Filtra ventas/gastos por mes si se indica un periodo
-    vq, gq = Venta.query, Gasto.query
+    # Filtra proyectos/gastos por mes (proyectos por su fecha de creación) si aplica
+    pq, gq = Proyecto.query, Gasto.query
     if anio and mes:
-        vq = vq.filter(extract("year", Venta.fecha) == anio,
-                       extract("month", Venta.fecha) == mes)
+        pq = pq.filter(extract("year", Proyecto.creado) == anio,
+                       extract("month", Proyecto.creado) == mes)
         gq = gq.filter(extract("year", Gasto.fecha) == anio,
                        extract("month", Gasto.fecha) == mes)
-    ventas, gastos = vq.all(), gq.all()
+    proyectos, gastos = pq.all(), gq.all()
 
-    total_ingresos = sum(v.monto for v in ventas)
+    # Solo cuentan los pedidos entregados o cancelados en su totalidad
+    total_ingresos = sum(p.ingreso_reconocido for p in proyectos)
     total_gastos = sum(g.monto for g in gastos)
     ganancia_neta = total_ingresos - total_gastos
 
@@ -201,7 +211,7 @@ def calcular_balance(anio=None, mes=None):
 
     balance_socios = []
     for u in usuarios:
-        cobrado = sum(v.monto for v in ventas if v.usuario_id == u.id)
+        cobrado = sum(p.ingreso_reconocido for p in proyectos if p.usuario_id == u.id)
         aporte = sum(g.monto for g in gastos if g.usuario_id == u.id)
         en_mano = cobrado - aporte
         ajuste = parte_justa - en_mano
@@ -477,6 +487,8 @@ def registrar_rutas(app):
             tiempo_estimado_h=float(f.get("tiempo_estimado_h") or 0),
             filamento_id=int(f["filamento_id"]) if f.get("filamento_id") else None,
             fecha_entrega=_parse_fecha_opt(f.get("fecha_entrega")),
+            precio_total=float(f.get("precio_total") or 0),
+            adelanto=float(f.get("adelanto") or 0),
             usuario_id=current_user.id,  # registra automáticamente al usuario autenticado
         )
         if not p.nombre:
@@ -512,6 +524,8 @@ def registrar_rutas(app):
             p.tiempo_estimado_h = float(f.get("tiempo_estimado_h") or 0)
             p.filamento_id = int(f["filamento_id"]) if f.get("filamento_id") else None
             p.fecha_entrega = _parse_fecha_opt(f.get("fecha_entrega"))
+            p.precio_total = float(f.get("precio_total") or 0)
+            p.adelanto = float(f.get("adelanto") or 0)
             p.usuario_id = int(f["usuario_id"]) if f.get("usuario_id") else None
 
             # ¿Subió un archivo nuevo? -> reparsear, borrar el viejo y guardar el nuevo

@@ -43,7 +43,7 @@
       </span>
       {% set item = "px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-cardh hover:text-teal-300 transition" %}
       <a href="{{ url_for('dashboard') }}" class="{{ item }}">Panel</a>
-      <a href="{{ url_for('proyectos') }}" class="{{ item }}">Proyectos</a>
+      <a href="{{ url_for('proyectos') }}" class="{{ item }}">Proyectos / Ventas</a>
       <a href="{{ url_for('filamentos') }}" class="{{ item }} relative">
         Filamentos
         {% if conteo_alertas > 0 %}
@@ -54,7 +54,6 @@
         </span>
         {% endif %}
       </a>
-      <a href="{{ url_for('ventas') }}" class="{{ item }}">Ventas</a>
       <a href="{{ url_for('gastos') }}" class="{{ item }}">Gastos</a>
       <a href="{{ url_for('balance') }}"
          class="{{ item }} bg-gradient-to-r from-teal-500 to-cyan-500 !text-slate-900 font-semibold hover:opacity-90">

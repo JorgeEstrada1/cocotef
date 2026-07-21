@@ -1,12 +1,12 @@
 {% extends "base.html" %}
-{% block titulo %}Proyectos{% endblock %}
+{% block titulo %}Proyectos / Ventas{% endblock %}
 {% block contenido %}
-<h1 class="text-2xl font-bold mb-6 text-slate-100">Proyectos / Impresiones</h1>
+<h1 class="text-2xl font-bold mb-6 text-slate-100">Proyectos / Ventas</h1>
 
 {% set inp = "bg-base border border-edge rounded-lg px-3 py-2 text-slate-100 placeholder-slate-600 focus:border-teal-400 focus:ring-2 focus:ring-teal-500/20 outline-none" %}
 
 <div class="bg-card border border-edge rounded-xl shadow-lg p-5 mb-6">
-  <h2 class="font-semibold mb-4 text-slate-200">Nuevo proyecto</h2>
+  <h2 class="font-semibold mb-4 text-slate-200">Nuevo proyecto / venta</h2>
   <form method="post" action="{{ url_for('nuevo_proyecto') }}" id="form-proyecto"
         enctype="multipart/form-data"
         class="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -39,6 +39,8 @@
       <option value="">— Filamento —</option>
       {% for f in filamentos %}<option value="{{ f.id }}">{{ f.etiqueta }}</option>{% endfor %}
     </select>
+    <input name="precio_total" type="number" step="0.01" min="0" placeholder="Precio total ($)" class="{{ inp }}">
+    <input name="adelanto" type="number" step="0.01" min="0" placeholder="Adelanto cobrado ($)" class="{{ inp }}">
     <label class="text-xs text-slate-500 flex flex-col gap-1">Fecha de entrega
       <input name="fecha_entrega" type="date" class="{{ inp }}">
     </label>
@@ -48,6 +50,7 @@
   </form>
   <p class="text-xs text-slate-500 mt-2">
     Se registrará automáticamente a <b class="text-teal-300">{{ current_user.nombre }}</b> como responsable.
+    El ingreso solo se cuenta cuando el pedido esté <b class="text-teal-300">Entregado</b> o el saldo sea <b class="text-teal-300">$0</b>.
     {% if not filamentos %} · Agrega filamentos primero para calcular el costo automático.{% endif %}
   </p>
 </div>
@@ -56,11 +59,14 @@
   <table class="w-full text-sm">
     <thead class="bg-cardh text-slate-400 text-left">
       <tr>
-        <th class="p-3">Pieza</th><th class="p-3">Cliente</th><th class="p-3">Peso</th>
-        <th class="p-3">Tiempo</th><th class="p-3">Filamento</th>
-        <th class="p-3">Costo</th><th class="p-3">Responsable</th>
-        <th class="p-3">Fecha entrega</th>
-        <th class="p-3">Estado</th><th class="p-3"></th>
+        <th class="p-3">Nombre</th>
+        <th class="p-3">Cliente</th>
+        <th class="p-3">Estado</th>
+        <th class="p-3 text-right">Precio total</th>
+        <th class="p-3 text-right">Adelanto</th>
+        <th class="p-3 text-right">Saldo pendiente</th>
+        <th class="p-3">Registró</th>
+        <th class="p-3">Acciones</th>
       </tr>
     </thead>
     <tbody>
@@ -74,38 +80,15 @@
                class="text-cyan-400 hover:text-cyan-300 text-xs" aria-label="Descargar archivo">⬇</a>
             {% endif %}
           </span>
-        </td>
-        <td class="p-3 text-slate-400">{{ p.cliente or '—' }}</td>
-        <td class="p-3 text-slate-300">{{ p.peso_g }} g</td>
-        <td class="p-3 text-slate-300">{{ p.tiempo_estimado_h }} h</td>
-        <td class="p-3 text-slate-300">{{ p.filamento.etiqueta if p.filamento else '—' }}</td>
-        <td class="p-3 text-teal-400">{{ p.costo_filamento | money }}</td>
-        <td class="p-3">
-          {% if p.usuario %}
-            <span class="inline-flex items-center gap-1.5">
-              <span class="w-2.5 h-2.5 rounded-full" style="background: {{ p.usuario.color }}"></span>
-              <span class="text-slate-300">{{ p.usuario.nombre }}</span>
-            </span>
-          {% else %}<span class="text-slate-500">—</span>{% endif %}
-        </td>
-        <td class="p-3">
-          {% if p.fecha_entrega %}
-            <div class="text-slate-300">{{ p.fecha_entrega.strftime('%d/%m/%Y') }}</div>
-            {% if p.estado == 'Entregado' %}
-              <span class="inline-block mt-1 text-xs px-2 py-0.5 rounded-md bg-teal-500/10 text-teal-300 border border-teal-500/30">✓ entregado</span>
-            {% elif p.dias_restantes < 0 %}
-              <span class="inline-block mt-1 text-xs px-2 py-0.5 rounded-md bg-rose-500/15 text-rose-300 border border-rose-500/40">⏰ retrasado {{ -p.dias_restantes }} día{{ 's' if -p.dias_restantes != 1 }}</span>
-            {% elif p.dias_restantes == 0 %}
-              <span class="inline-block mt-1 text-xs px-2 py-0.5 rounded-md bg-orange-500/15 text-orange-300 border border-orange-500/40">🔥 vence hoy</span>
-            {% elif p.dias_restantes <= 2 %}
-              <span class="inline-block mt-1 text-xs px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-300 border border-amber-500/40">⚡ en {{ p.dias_restantes }} día{{ 's' if p.dias_restantes != 1 }}</span>
-            {% else %}
-              <span class="inline-block mt-1 text-xs px-2 py-0.5 rounded-md bg-base text-slate-400 border border-edge">en {{ p.dias_restantes }} días</span>
+          {% if p.fecha_entrega and p.estado != 'Entregado' %}
+            {% if p.dias_restantes is not none and p.dias_restantes < 0 %}
+              <span class="block mt-1 text-xs text-rose-300">⏰ retrasado {{ -p.dias_restantes }} día{{ 's' if -p.dias_restantes != 1 }}</span>
+            {% elif p.dias_restantes is not none and p.dias_restantes <= 2 %}
+              <span class="block mt-1 text-xs text-amber-300">⚡ vence en {{ p.dias_restantes }} día{{ 's' if p.dias_restantes != 1 }}</span>
             {% endif %}
-          {% else %}
-            <span class="text-slate-600 italic">Sin fecha</span>
           {% endif %}
         </td>
+        <td class="p-3 text-slate-400">{{ p.cliente or '—' }}</td>
         <td class="p-3">
           <form method="post" action="{{ url_for('cambiar_estado', pid=p.id) }}">
             <select name="estado" onchange="this.form.submit()"
@@ -116,9 +99,31 @@
             </select>
           </form>
         </td>
+        <td class="p-3 text-right text-slate-200">{{ p.precio_total | money }}</td>
+        <td class="p-3 text-right text-cyan-300">{{ p.adelanto | money }}</td>
+        <td class="p-3 text-right">
+          {% if p.pagado_completo %}
+            <span class="inline-block text-xs px-2 py-0.5 rounded-md bg-teal-500/10 text-teal-300 border border-teal-500/30">✓ Pagado</span>
+          {% elif p.saldo_pendiente > 0 %}
+            <span class="font-semibold text-amber-300">{{ p.saldo_pendiente | money }}</span>
+          {% else %}
+            <span class="text-slate-500">—</span>
+          {% endif %}
+        </td>
+        <td class="p-3">
+          {% if p.usuario %}
+            <span class="inline-flex items-center gap-1.5">
+              <span class="w-2.5 h-2.5 rounded-full" style="background: {{ p.usuario.color }}"></span>
+              <span class="text-slate-300">{{ p.usuario.nombre }}</span>
+            </span>
+          {% else %}<span class="text-slate-500">—</span>{% endif %}
+        </td>
         <td class="p-3">
           <div class="flex items-center gap-3">
             <a href="{{ url_for('editar_proyecto', pid=p.id) }}" class="text-teal-400 hover:text-teal-300">Editar</a>
+            {% if p.gcode_filename %}
+            <a href="{{ url_for('descargar_gcode', pid=p.id) }}" class="text-cyan-400 hover:text-cyan-300">G-Code</a>
+            {% endif %}
             <form method="post" action="{{ url_for('eliminar_proyecto', pid=p.id) }}"
                   onsubmit="return confirm('¿Eliminar proyecto?')">
               <button class="text-rose-400 hover:text-rose-300">Eliminar</button>
@@ -127,7 +132,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="10" class="p-4 text-center text-slate-500">Sin proyectos aún.</td></tr>
+      <tr><td colspan="8" class="p-4 text-center text-slate-500">Sin proyectos aún.</td></tr>
       {% endfor %}
     </tbody>
   </table>

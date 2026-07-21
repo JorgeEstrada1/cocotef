@@ -41,7 +41,8 @@ class Filamento(db.Model):
 
     proyectos = db.relationship("Proyecto", backref="filamento", lazy=True)
 
-    # Estados de proyecto que ya consumieron filamento (todo lo que se imprimió)
+    # Estados de proyecto que ya consumieron filamento (todo lo físicamente impreso).
+    # "Por imprimir" NO consume: la pieza está en cola pero aún no se imprimió.
     ESTADOS_CONSUMIDOS = ("Imprimiendo", "Terminado", "Entregado")
 
     @property
@@ -76,7 +77,8 @@ class Proyecto(db.Model):
     """Pieza o proyecto de impresión."""
     __tablename__ = "proyectos"
 
-    ESTADOS = ["Diseñando", "Imprimiendo", "Terminado", "Entregado"]
+    # Flujo completo: Diseñando -> Por imprimir -> Imprimiendo -> Terminado -> Entregado
+    ESTADOS = ["Diseñando", "Por imprimir", "Imprimiendo", "Terminado", "Entregado"]
 
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(120), nullable=False)
@@ -90,8 +92,33 @@ class Proyecto(db.Model):
     fecha_entrega = db.Column(db.Date)                        # fecha comprometida de entrega
     gcode_filename = db.Column(db.String(120))               # nombre del archivo G-code/3MF en disco
 
+    # Cobranza (adelantos / saldos). El proyecto ES la venta: unifica ambos módulos.
+    precio_total = db.Column(db.Float, default=0.0)           # precio acordado del pedido
+    adelanto = db.Column(db.Float, default=0.0)               # dinero ya cobrado (parcial o total)
+
     usuario_id = db.Column(db.Integer, db.ForeignKey("usuarios.id"))
     creado = db.Column(db.DateTime, default=datetime.utcnow)
+
+    @property
+    def saldo_pendiente(self):
+        """Lo que falta por cobrar = precio_total - adelanto."""
+        return round((self.precio_total or 0.0) - (self.adelanto or 0.0), 2)
+
+    @property
+    def pagado_completo(self):
+        """El pedido está cancelado en su totalidad (hay precio y no queda saldo)."""
+        return (self.precio_total or 0.0) > 0 and self.saldo_pendiente <= 0
+
+    @property
+    def ingreso_reconocido(self):
+        """
+        Regla contable: el precio del pedido solo se cuenta como ingreso cuando
+        el estado es 'Entregado' o el saldo pendiente es 0 (pedido cancelado
+        en su totalidad). Los adelantos/pagos parciales NO se reconocen antes.
+        """
+        if self.estado == "Entregado" or self.pagado_completo:
+            return self.precio_total or 0.0
+        return 0.0
 
     @property
     def costo_filamento(self):

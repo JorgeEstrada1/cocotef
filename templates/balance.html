@@ -35,7 +35,7 @@
       {{ s.usuario.nombre }}
     </h2>
     <div class="space-y-2 text-sm">
-      <div class="flex justify-between"><span class="text-slate-400">Cobró (ventas)</span>
+      <div class="flex justify-between"><span class="text-slate-400">Cobró (pedidos entregados/saldados)</span>
         <span class="font-medium text-teal-400">{{ s.cobrado | money }}</span></div>
       <div class="flex justify-between"><span class="text-slate-400">Aportó (gastos que pagó)</span>
         <span class="font-medium text-rose-400">{{ s.aporte | money }}</span></div>
@@ -61,7 +61,8 @@
 </div>
 
 <p class="text-xs text-slate-500 mt-6">
-  El reparto asume ganancias divididas equitativamente. "En mano" = ventas cobradas − gastos pagados.
+  El reparto asume ganancias divididas equitativamente. "En mano" = ingresos reconocidos − gastos pagados.
+  Un pedido solo suma como ingreso cuando está <b>Entregado</b> o su saldo pendiente es <b>$0</b>.
   El ajuste iguala a ambos socios al 50% de la ganancia neta.
 </p>
 {% endblock %}
