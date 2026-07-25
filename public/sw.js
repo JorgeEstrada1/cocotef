@@ -1,7 +1,7 @@
 /* Service Worker — Taller 3D App (frontend Vercel).
    Cachea el "app shell" (cache-first) para arranque rápido/offline. Las llamadas
    a la API (otro origen: PythonAnywhere) van siempre a la red. */
-const CACHE = "taller3d-app-v2";
+const CACHE = "taller3d-app-v3";
 const SHELL = ["/", "/index.html", "/app.js", "/config.js", "/manifest.json", "/icon.svg"];
 
 self.addEventListener("install", (event) => {

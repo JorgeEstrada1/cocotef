@@ -83,30 +83,40 @@
         <h1 id="pos-nombre" class="font-bold text-slate-100 truncate flex-1">Feria</h1>
         <span id="pos-estado" class="text-[11px] px-2 py-0.5 rounded-md border bg-teal-500/15 text-teal-300 border-teal-500/30">Activa</span>
       </div>
+      <!-- 3 indicadores financieros clave -->
       <div class="grid grid-cols-3 gap-2 text-center">
-        <div class="bg-card border border-edge rounded-xl py-2">
-          <p class="text-[10px] text-slate-500 uppercase tracking-wide">Caja</p>
+        <div class="bg-card border border-teal-500/30 rounded-xl py-2">
+          <p class="text-[10px] text-slate-500 uppercase tracking-wide">💰 Caja</p>
           <p id="pos-caja" class="font-bold text-teal-300 text-lg leading-tight">Bs. 0</p>
         </div>
-        <div class="bg-card border border-edge rounded-xl py-2">
-          <p class="text-[10px] text-slate-500 uppercase tracking-wide">Ganancia</p>
-          <p id="pos-ganancia" class="font-bold text-emerald-300 text-lg leading-tight">Bs. 0</p>
+        <div class="bg-card border border-fuchsia-500/30 rounded-xl py-2">
+          <p class="text-[10px] text-slate-500 uppercase tracking-wide">📦 Mercadería</p>
+          <p id="pos-proyectado" class="font-bold text-fuchsia-300 text-lg leading-tight">Bs. 0</p>
         </div>
-        <div class="bg-card border border-edge rounded-xl py-2">
-          <p class="text-[10px] text-slate-500 uppercase tracking-wide">Vendidas</p>
-          <p id="pos-vendidas" class="font-bold text-slate-100 text-lg leading-tight">0</p>
+        <div class="bg-card border border-amber-500/30 rounded-xl py-2">
+          <p class="text-[10px] text-slate-500 uppercase tracking-wide">🪑 En mesa</p>
+          <p id="pos-mesa" class="font-bold text-amber-300 text-lg leading-tight">Bs. 0</p>
         </div>
+      </div>
+      <div class="flex items-center justify-center gap-4 text-[11px] text-slate-500">
+        <span>Ganancia <b id="pos-ganancia" class="text-emerald-300">Bs. 0</b></span>
+        <span>Vendidas <b id="pos-vendidas" class="text-slate-200">0</b></span>
+        <span>Mermas <b id="pos-mermas" class="text-rose-300">0</b></span>
       </div>
     </div>
 
     <!-- Botonera POS: un toque = una venta -->
     <div id="pos-productos" class="grid grid-cols-2 gap-3"></div>
 
-    <div class="flex items-center gap-2 pt-1">
+    <div class="grid grid-cols-2 gap-2 pt-1">
       <button onclick="abrirAgregarProducto()"
-              class="flex-1 py-3 rounded-xl text-sm font-semibold bg-card border border-edge text-slate-200 active:bg-cardh">＋ Producto</button>
+              class="py-3 rounded-xl text-sm font-semibold bg-card border border-edge text-slate-200 active:bg-cardh">＋ Producto</button>
+      <button onclick="abrirCombo()"
+              class="py-3 rounded-xl text-sm font-semibold text-slate-900 bg-gradient-to-r from-violet-500 to-fuchsia-500 active:opacity-80">🎁 Combo</button>
+      <button onclick="abrirMerma()"
+              class="py-3 rounded-xl text-sm font-semibold bg-card border border-rose-500/40 text-rose-200 active:bg-cardh">📉 Merma</button>
       <button onclick="cerrarFeria()"
-              class="flex-1 py-3 rounded-xl text-sm font-semibold text-slate-900 bg-gradient-to-r from-amber-500 to-orange-500 active:opacity-80">🏁 Cerrar caja</button>
+              class="py-3 rounded-xl text-sm font-semibold text-slate-900 bg-gradient-to-r from-amber-500 to-orange-500 active:opacity-80">🏁 Cerrar caja</button>
     </div>
   </div>
 </section>

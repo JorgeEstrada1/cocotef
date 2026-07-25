@@ -343,6 +343,7 @@ class Feria(db.Model):
     nombre = db.Column(db.String(120), nullable=False)        # "Feria Navideña Plaza"
     fecha = db.Column(db.Date, default=date.today)
     costo_stand = db.Column(db.Float, default=0.0)            # alquiler del puesto (Bs.)
+    costo_material = db.Column(db.Float, default=0.0)         # costo del material/mercadería (Bs.)
     estado = db.Column(db.String(20), default="Activa")
     total_recaudado = db.Column(db.Float, default=0.0)        # se actualiza con cada venta
     creado = db.Column(db.DateTime, default=datetime.utcnow)
@@ -363,9 +364,51 @@ class Feria(db.Model):
         return sum(i.cantidad_llevada or 0 for i in self.inventario)
 
     @property
+    def unidades_merma(self):
+        """Piezas dadas de baja: dañadas, muestras gratis o canjes."""
+        return sum(i.cantidad_merma or 0 for i in self.inventario)
+
+    @property
+    def unidades_restantes(self):
+        return sum(i.cantidad_restante for i in self.inventario)
+
+    @property
+    def total_proyectado(self):
+        """Valor total de la mercadería llevada (cantidad_llevada * precio)."""
+        return round(sum(i.valor_proyectado for i in self.inventario), 2)
+
+    @property
+    def valor_restante_mesa(self):
+        """Valor de lo que aún queda por vender en la mesa (a precio de venta)."""
+        return round(sum(i.valor_restante for i in self.inventario), 2)
+
+    @property
     def ganancia_neta(self):
-        """Recaudado menos el costo del stand (Bs.)."""
-        return round((self.total_recaudado or 0.0) - (self.costo_stand or 0.0), 2)
+        """Recaudado menos el costo del stand y del material (Bs.)."""
+        return round((self.total_recaudado or 0.0)
+                     - (self.costo_stand or 0.0)
+                     - (self.costo_material or 0.0), 2)
+
+    @property
+    def porcentaje_vendido(self):
+        """% de unidades vendidas respecto de lo llevado."""
+        llevadas = self.unidades_llevadas
+        if not llevadas:
+            return 0.0
+        return round(self.unidades_vendidas / llevadas * 100, 1)
+
+    @property
+    def producto_estrella(self):
+        """El ítem con más unidades vendidas (o None si no se vendió nada)."""
+        vendidos = [i for i in self.inventario if (i.cantidad_vendida or 0) > 0]
+        if not vendidos:
+            return None
+        top = max(vendidos, key=lambda i: (i.cantidad_vendida or 0, i.recaudado))
+        return {
+            "producto_nombre": top.producto_nombre,
+            "unidades": top.cantidad_vendida or 0,
+            "recaudado": top.recaudado,
+        }
 
     def __repr__(self):
         return f"<Feria {self.nombre} ({self.estado})>"
@@ -381,15 +424,28 @@ class FeriaInventario(db.Model):
     producto_nombre = db.Column(db.String(120), nullable=False)
     cantidad_llevada = db.Column(db.Integer, default=0)
     cantidad_vendida = db.Column(db.Integer, default=0)
+    cantidad_merma = db.Column(db.Integer, default=0)         # dañadas / muestras / canjes
     precio_unitario = db.Column(db.Float, default=0.0)
 
     @property
     def cantidad_restante(self):
-        return max((self.cantidad_llevada or 0) - (self.cantidad_vendida or 0), 0)
+        return max((self.cantidad_llevada or 0)
+                   - (self.cantidad_vendida or 0)
+                   - (self.cantidad_merma or 0), 0)
 
     @property
     def recaudado(self):
         return round((self.cantidad_vendida or 0) * (self.precio_unitario or 0.0), 2)
+
+    @property
+    def valor_proyectado(self):
+        """Valor de toda la mercadería llevada de este ítem."""
+        return round((self.cantidad_llevada or 0) * (self.precio_unitario or 0.0), 2)
+
+    @property
+    def valor_restante(self):
+        """Valor de lo que queda por vender de este ítem (a precio de venta)."""
+        return round(self.cantidad_restante * (self.precio_unitario or 0.0), 2)
 
     def __repr__(self):
         return f"<FeriaInventario {self.producto_nombre} {self.cantidad_vendida}/{self.cantidad_llevada}>"
@@ -405,6 +461,8 @@ class FeriaVenta(db.Model):
     producto_nombre = db.Column(db.String(120), nullable=False)
     cantidad = db.Column(db.Integer, default=1)
     precio_total = db.Column(db.Float, default=0.0)
+    tipo = db.Column(db.String(20), default="venta")          # venta | combo | merma
+    nota = db.Column(db.String(200))                          # detalle opcional de la venta
     fecha_hora = db.Column(db.DateTime, default=datetime.utcnow)
 
     def __repr__(self):

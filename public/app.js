@@ -403,9 +403,10 @@ function tarjetaFeria(f) {
 function abrirNuevaFeria() {
   abrirModal("Nueva feria", `
     <input id="nf-nombre" placeholder="Nombre (ej. Feria Navideña)" class="w-full px-3 py-2.5 rounded-lg bg-base border border-edge text-slate-100 placeholder-slate-500">
+    <input id="nf-fecha" type="date" class="w-full px-3 py-2.5 rounded-lg bg-base border border-edge text-slate-100">
     <div class="flex gap-2">
-      <input id="nf-fecha" type="date" class="flex-1 px-3 py-2.5 rounded-lg bg-base border border-edge text-slate-100">
       <input id="nf-costo" type="number" inputmode="decimal" min="0" placeholder="Costo stand" class="flex-1 px-3 py-2.5 rounded-lg bg-base border border-edge text-slate-100 placeholder-slate-500">
+      <input id="nf-material" type="number" inputmode="decimal" min="0" placeholder="Costo material" class="flex-1 px-3 py-2.5 rounded-lg bg-base border border-edge text-slate-100 placeholder-slate-500">
     </div>
     <button onclick="crearFeria(this)" class="w-full py-3 rounded-xl font-semibold text-slate-900 bg-gradient-to-r from-fuchsia-500 to-pink-500 active:opacity-80">Crear feria</button>`);
   const hoy = new Date().toISOString().slice(0, 10);
@@ -422,6 +423,7 @@ async function crearFeria(btn) {
         nombre,
         fecha: document.getElementById("nf-fecha").value || undefined,
         costo_stand: document.getElementById("nf-costo").value || 0,
+        costo_material: document.getElementById("nf-material").value || 0,
       }),
     });
     if (!data.ok) { toast(data.error || "No se pudo crear.", true); return; }
@@ -454,9 +456,13 @@ function cerrarVistaPOS() {
 }
 
 function actualizarCaja(f) {
-  document.getElementById("pos-caja").textContent = money(f.total_recaudado);
-  document.getElementById("pos-ganancia").textContent = money(f.ganancia_neta);
-  document.getElementById("pos-vendidas").textContent = f.unidades_vendidas;
+  const set = (id, val) => { const el = document.getElementById(id); if (el && val !== undefined) el.textContent = val; };
+  set("pos-caja", money(f.total_recaudado));
+  if (f.total_proyectado !== undefined) set("pos-proyectado", money(f.total_proyectado));
+  if (f.valor_restante_mesa !== undefined) set("pos-mesa", money(f.valor_restante_mesa));
+  set("pos-ganancia", money(f.ganancia_neta));
+  set("pos-vendidas", f.unidades_vendidas);
+  if (f.unidades_merma !== undefined) set("pos-mermas", f.unidades_merma);
 }
 
 function renderPOS(f) {
@@ -479,45 +485,69 @@ function renderPOS(f) {
 function botonProducto(i, fid, finalizada) {
   const agotado = i.cantidad_restante <= 0;
   const dis = finalizada || agotado;
-  return `<button id="prod-${i.id}" ${dis ? "disabled" : `onclick="ventaRapida(${fid},${i.id},this)"`}
-      class="relative rounded-2xl p-4 min-h-[110px] flex flex-col justify-between text-left border transition active:scale-95
-             ${dis ? "bg-base border-edge opacity-60" : "bg-gradient-to-br from-fuchsia-600/20 to-pink-600/10 border-fuchsia-500/40 active:from-fuchsia-600/40"}">
-    <span class="font-semibold text-slate-100 leading-tight break-words">${esc(i.producto_nombre)}</span>
-    <div>
-      <p class="text-teal-300 font-bold text-lg">${money(i.precio_unitario)}</p>
-      <p class="text-[11px] text-slate-400">Quedan <b data-rest class="text-slate-200">${i.cantidad_restante}</b> · vend. <b data-vend>${i.cantidad_vendida}</b></p>
+  // Íconos táctiles de edición/borrado (ocultos si la feria está finalizada).
+  const acciones = finalizada ? "" : `
+    <div class="absolute top-1.5 right-1.5 flex gap-1">
+      <button onclick="editarProducto(${i.id})" title="Editar"
+              class="w-7 h-7 rounded-lg bg-base/80 border border-edge text-slate-300 text-xs active:bg-cardh flex items-center justify-center">✏️</button>
+      <button onclick="borrarProducto(${i.id})" title="Eliminar"
+              class="w-7 h-7 rounded-lg bg-base/80 border border-rose-500/40 text-rose-300 text-xs active:bg-cardh flex items-center justify-center">🗑️</button>
+    </div>`;
+  const ventaArea = dis
+    ? `<div id="prod-${i.id}" class="rounded-2xl p-4 pt-9 min-h-[120px] flex flex-col justify-between text-left border bg-base border-edge opacity-60">`
+    : `<div id="prod-${i.id}" onclick="ventaRapida(${fid},${i.id},this)"
+           class="rounded-2xl p-4 pt-9 min-h-[120px] flex flex-col justify-between text-left border transition active:scale-95 cursor-pointer bg-gradient-to-br from-fuchsia-600/20 to-pink-600/10 border-fuchsia-500/40 active:from-fuchsia-600/40">`;
+  return `<div class="relative">
+    ${acciones}
+    ${ventaArea}
+      <span class="font-semibold text-slate-100 leading-tight break-words pr-1">${esc(i.producto_nombre)}</span>
+      <div>
+        <p class="text-teal-300 font-bold text-lg">${money(i.precio_unitario)}</p>
+        <p class="text-[11px] text-slate-400">Quedan <b data-rest class="text-slate-200">${i.cantidad_restante}</b> · vend. <b data-vend>${i.cantidad_vendida}</b></p>
+      </div>
+      ${agotado ? `<span class="absolute inset-0 flex items-center justify-center text-xs font-bold text-rose-300 bg-base/70 rounded-2xl pointer-events-none">AGOTADO</span>` : ""}
     </div>
-    ${agotado ? `<span class="absolute inset-0 flex items-center justify-center text-xs font-bold text-rose-300 bg-base/70 rounded-2xl">AGOTADO</span>` : ""}
-  </button>`;
+  </div>`;
 }
 
 // ---- Venta rápida: 1 toque ----
 async function ventaRapida(fid, itemId, btn) {
-  btn.disabled = true;
+  if (btn.dataset.busy) return;      // evita doble toque accidental
+  btn.dataset.busy = "1";
   try {
     const data = await feriasFetch(`/${fid}/venta-rapida`, {
       method: "POST", body: JSON.stringify({ inventario_id: itemId }),
     });
     if (!data.ok) { toast(data.error || "No se pudo registrar.", true); return; }
-    // Actualiza caja global
-    feriaActual.total_recaudado = data.total_recaudado;
-    feriaActual.unidades_vendidas = (feriaActual.unidades_vendidas || 0) + data.venta.cantidad;
-    actualizarCaja({ total_recaudado: data.total_recaudado, ganancia_neta: data.ganancia_neta,
-                     unidades_vendidas: feriaActual.unidades_vendidas });
-    // Actualiza el botón
+    aplicarTotalesFeria(data);
+    // Actualiza el ítem tocado
     const rest = btn.querySelector("[data-rest]"), vend = btn.querySelector("[data-vend]");
     if (rest) rest.textContent = data.item.cantidad_restante;
     if (vend) vend.textContent = data.item.cantidad_vendida;
-    if (data.item.cantidad_restante <= 0) {
-      btn.disabled = true;
-      btn.insertAdjacentHTML("beforeend",
-        `<span class="absolute inset-0 flex items-center justify-center text-xs font-bold text-rose-300 bg-base/70 rounded-2xl">AGOTADO</span>`);
-    }
-    // Feedback táctil
+    if (data.item.cantidad_restante <= 0) marcarAgotado(btn);
     if (navigator.vibrate) navigator.vibrate(40);
     toast(`✅ ${data.venta.producto_nombre} · ${money(data.venta.precio_total)}`);
   } catch (e) { toast("Error de red.", true); }
-  finally { if (!btn.disabled) btn.disabled = false; }
+  finally { delete btn.dataset.busy; }
+}
+
+// Aplica los totales que devuelven venta-rápida / combo / merma a la caja y a feriaActual.
+function aplicarTotalesFeria(data) {
+  if (!feriaActual) return;
+  ["total_recaudado", "total_proyectado", "valor_restante_mesa", "ganancia_neta",
+   "unidades_vendidas", "unidades_merma"].forEach((k) => {
+    if (data[k] !== undefined) feriaActual[k] = data[k];
+  });
+  actualizarCaja(feriaActual);
+}
+
+function marcarAgotado(el) {
+  el.onclick = null;
+  el.classList.add("opacity-60");
+  if (!el.querySelector(".etq-agotado")) {
+    el.insertAdjacentHTML("beforeend",
+      `<span class="etq-agotado absolute inset-0 flex items-center justify-center text-xs font-bold text-rose-300 bg-base/70 rounded-2xl pointer-events-none">AGOTADO</span>`);
+  }
 }
 
 // ---- Agregar producto al inventario de la feria ----
@@ -552,33 +582,209 @@ async function agregarProducto(btn) {
   finally { btn.disabled = false; }
 }
 
+// ---- Editar producto (precio / cantidad) ----
+function editarProducto(itemId) {
+  if (!feriaActual) return;
+  const it = (feriaActual.inventario || []).find((x) => x.id === itemId);
+  if (!it) return;
+  abrirModal("Editar producto", `
+    <input id="ed-nombre" value="${esc(it.producto_nombre)}" class="w-full px-3 py-2.5 rounded-lg bg-base border border-edge text-slate-100">
+    <div class="flex gap-2">
+      <label class="flex-1 text-xs text-slate-400">Cantidad llevada
+        <input id="ed-cant" type="number" inputmode="numeric" min="0" value="${it.cantidad_llevada}" class="mt-1 w-full px-3 py-2.5 rounded-lg bg-base border border-edge text-slate-100">
+      </label>
+      <label class="flex-1 text-xs text-slate-400">Precio c/u
+        <input id="ed-precio" type="number" inputmode="decimal" min="0" value="${it.precio_unitario}" class="mt-1 w-full px-3 py-2.5 rounded-lg bg-base border border-edge text-slate-100">
+      </label>
+    </div>
+    <p class="text-[11px] text-slate-500">Ya movidas (vendidas + mermas): <b>${(it.cantidad_vendida || 0) + (it.cantidad_merma || 0)}</b>. La cantidad no puede bajar de ahí.</p>
+    <button onclick="guardarProducto(${itemId}, this)" class="w-full py-3 rounded-xl font-semibold text-slate-900 bg-gradient-to-r from-teal-500 to-cyan-500 active:opacity-80">Guardar cambios</button>`);
+}
+
+async function guardarProducto(itemId, btn) {
+  btn.disabled = true;
+  try {
+    const data = await feriasFetch(`/${feriaActual.id}/inventario/${itemId}`, {
+      method: "PATCH", body: JSON.stringify({
+        producto_nombre: document.getElementById("ed-nombre").value.trim(),
+        cantidad_llevada: document.getElementById("ed-cant").value,
+        precio_unitario: document.getElementById("ed-precio").value,
+      }),
+    });
+    if (!data.ok) { toast(data.error || "No se pudo editar.", true); return; }
+    cerrarModal();
+    toast("✏️ Producto actualizado.");
+    abrirFeriaPOS(feriaActual.id);
+  } catch (e) { toast("Error de red.", true); }
+  finally { btn.disabled = false; }
+}
+
+// ---- Borrar producto ----
+function borrarProducto(itemId) {
+  if (!feriaActual) return;
+  const it = (feriaActual.inventario || []).find((x) => x.id === itemId);
+  if (!it) return;
+  abrirModal("Eliminar producto", `
+    <p class="text-sm text-slate-400">¿Quitar «<b class="text-slate-200">${esc(it.producto_nombre)}</b>» de esta feria? Esta acción no se puede deshacer.</p>
+    <button onclick="confirmarBorrado(${itemId}, this)" class="w-full py-3 rounded-xl font-semibold text-slate-900 bg-gradient-to-r from-rose-500 to-red-500 active:opacity-80">🗑️ Sí, eliminar</button>
+    <button onclick="cerrarModal()" class="w-full py-2.5 rounded-xl text-sm bg-card border border-edge text-slate-300">Cancelar</button>`);
+}
+
+async function confirmarBorrado(itemId, btn) {
+  btn.disabled = true;
+  try {
+    const data = await feriasFetch(`/${feriaActual.id}/inventario/${itemId}`, { method: "DELETE" });
+    if (!data.ok) { toast(data.error || "No se pudo eliminar.", true); return; }
+    cerrarModal();
+    toast("🗑️ Producto eliminado.");
+    abrirFeriaPOS(feriaActual.id);
+  } catch (e) { toast("Error de red.", true); }
+  finally { btn.disabled = false; }
+}
+
+// ---- Combo / descuento rápido ----
+function abrirCombo() {
+  if (!feriaActual) return;
+  const inv = (feriaActual.inventario || []).filter((i) => i.cantidad_restante > 0);
+  if (!inv.length) { toast("No hay stock disponible para armar un combo.", true); return; }
+  const filas = inv.map((i) => `
+    <label class="flex items-center gap-2 bg-base rounded-lg px-3 py-2">
+      <input type="checkbox" class="combo-chk w-4 h-4 accent-fuchsia-500" data-id="${i.id}" data-nombre="${esc(i.producto_nombre)}">
+      <span class="flex-1 text-sm text-slate-200 truncate">${esc(i.producto_nombre)} <span class="text-slate-500">(${i.cantidad_restante})</span></span>
+      <input type="number" inputmode="numeric" min="1" value="1" class="combo-cant w-14 px-2 py-1 rounded-md bg-card border border-edge text-slate-100 text-center text-sm">
+    </label>`).join("");
+  abrirModal("🎁 Combo / descuento", `
+    <p class="text-xs text-slate-400">Marca los productos, ajusta cantidades y pon el precio total pactado (ej. 3 Llaveros por 20 Bs).</p>
+    <div class="space-y-2 max-h-52 overflow-y-auto">${filas}</div>
+    <input id="combo-precio" type="number" inputmode="decimal" min="0" placeholder="Precio total del combo (Bs.)" class="w-full px-3 py-2.5 rounded-lg bg-base border border-edge text-slate-100 placeholder-slate-500">
+    <input id="combo-nota" placeholder="Nota (opcional)" class="w-full px-3 py-2.5 rounded-lg bg-base border border-edge text-slate-100 placeholder-slate-500">
+    <button onclick="registrarCombo(this)" class="w-full py-3 rounded-xl font-semibold text-slate-900 bg-gradient-to-r from-violet-500 to-fuchsia-500 active:opacity-80">Cobrar combo</button>`);
+}
+
+async function registrarCombo(btn) {
+  const items = [];
+  let descNombres = [];
+  document.querySelectorAll(".combo-chk").forEach((chk) => {
+    if (chk.checked) {
+      const cant = parseInt(chk.closest("label").querySelector(".combo-cant").value) || 1;
+      items.push({ inventario_id: Number(chk.dataset.id), cantidad: Math.max(cant, 1) });
+      descNombres.push(`${cant}× ${chk.dataset.nombre}`);
+    }
+  });
+  if (!items.length) { toast("Selecciona al menos un producto.", true); return; }
+  const precio = document.getElementById("combo-precio").value;
+  if (precio === "" || Number(precio) < 0) { toast("Pon el precio total del combo.", true); return; }
+  btn.disabled = true;
+  try {
+    const data = await feriasFetch(`/${feriaActual.id}/venta-combo`, {
+      method: "POST", body: JSON.stringify({
+        items, precio_total: precio,
+        descripcion: descNombres.length > 1 ? "Combo: " + descNombres.join(" + ") : undefined,
+        nota: document.getElementById("combo-nota").value.trim() || undefined,
+      }),
+    });
+    if (!data.ok) { toast(data.error || "No se pudo cobrar.", true); return; }
+    cerrarModal();
+    if (navigator.vibrate) navigator.vibrate(40);
+    toast(`🎁 Combo cobrado · ${money(data.venta.precio_total)}`);
+    abrirFeriaPOS(feriaActual.id);   // refresca botones con el stock nuevo
+  } catch (e) { toast("Error de red.", true); }
+  finally { btn.disabled = false; }
+}
+
+// ---- Merma / muestra gratis ----
+function abrirMerma() {
+  if (!feriaActual) return;
+  const inv = (feriaActual.inventario || []).filter((i) => i.cantidad_restante > 0);
+  if (!inv.length) { toast("No hay stock para registrar merma.", true); return; }
+  const opciones = inv.map((i) => `<option value="${i.id}">${esc(i.producto_nombre)} (${i.cantidad_restante})</option>`).join("");
+  abrirModal("📉 Merma / muestra gratis", `
+    <p class="text-xs text-slate-400">Descuenta unidades del stock SIN sumar dinero a la caja (piezas dañadas, muestras o canjes).</p>
+    <select id="mer-item" class="w-full px-3 py-2.5 rounded-lg bg-base border border-edge text-slate-100">${opciones}</select>
+    <div class="flex gap-2">
+      <input id="mer-cant" type="number" inputmode="numeric" min="1" value="1" class="w-24 px-3 py-2.5 rounded-lg bg-base border border-edge text-slate-100 text-center">
+      <input id="mer-motivo" placeholder="Motivo (opcional)" class="flex-1 px-3 py-2.5 rounded-lg bg-base border border-edge text-slate-100 placeholder-slate-500">
+    </div>
+    <button onclick="registrarMerma(this)" class="w-full py-3 rounded-xl font-semibold text-slate-900 bg-gradient-to-r from-rose-500 to-red-500 active:opacity-80">Registrar merma</button>`);
+}
+
+async function registrarMerma(btn) {
+  btn.disabled = true;
+  try {
+    const data = await feriasFetch(`/${feriaActual.id}/merma`, {
+      method: "POST", body: JSON.stringify({
+        inventario_id: Number(document.getElementById("mer-item").value),
+        cantidad: document.getElementById("mer-cant").value || 1,
+        motivo: document.getElementById("mer-motivo").value.trim() || undefined,
+      }),
+    });
+    if (!data.ok) { toast(data.error || "No se pudo registrar.", true); return; }
+    cerrarModal();
+    if (navigator.vibrate) navigator.vibrate([30, 30, 30]);
+    toast(`📉 Merma registrada · ${esc(data.merma.producto_nombre)}`);
+    abrirFeriaPOS(feriaActual.id);
+  } catch (e) { toast("Error de red.", true); }
+  finally { btn.disabled = false; }
+}
+
 // ---- Cerrar caja (finalizar feria) ----
 function cerrarFeria() {
   if (!feriaActual) return;
+  const matActual = feriaActual.costo_material || 0;
   abrirModal("Cerrar caja", `
-    <p class="text-sm text-slate-400">Se calculará el balance final, se registrará el costo del stand como gasto y el stock no vendido volverá al inventario general. Esta acción no se puede deshacer.</p>
+    <p class="text-sm text-slate-400">Se calculará el balance final, se registrarán el costo del stand y del material como gasto, y el stock no vendido volverá al inventario general. Esta acción no se puede deshacer.</p>
+    <label class="block text-xs text-slate-400">Costo de material / mercadería (Bs.)
+      <input id="ci-material" type="number" inputmode="decimal" min="0" value="${matActual}" class="mt-1 w-full px-3 py-2.5 rounded-lg bg-base border border-edge text-slate-100">
+    </label>
     <button onclick="confirmarCierre(this)" class="w-full py-3 rounded-xl font-semibold text-slate-900 bg-gradient-to-r from-amber-500 to-orange-500 active:opacity-80">🏁 Confirmar cierre</button>
     <button onclick="cerrarModal()" class="w-full py-2.5 rounded-xl text-sm bg-card border border-edge text-slate-300">Cancelar</button>`);
 }
 
 async function confirmarCierre(btn) {
   btn.disabled = true;
+  const material = document.getElementById("ci-material");
   try {
-    const data = await feriasFetch(`/${feriaActual.id}/cerrar`, { method: "POST", body: "{}" });
+    const data = await feriasFetch(`/${feriaActual.id}/cerrar`, {
+      method: "POST",
+      body: JSON.stringify({ costo_material: material ? (material.value || 0) : undefined }),
+    });
     if (!data.ok) { toast(data.error || "No se pudo cerrar.", true); return; }
-    const b = data.balance;
+    const r = data.reporte || {};
     const dev = data.stock_devuelto || [];
-    abrirModal("🏁 Feria cerrada", `
-      <div class="grid grid-cols-2 gap-2 text-center">
-        <div class="bg-base rounded-xl py-3"><p class="text-[10px] text-slate-500 uppercase">Recaudado</p><p class="font-bold text-teal-300 text-lg">${money(b.total_recaudado)}</p></div>
-        <div class="bg-base rounded-xl py-3"><p class="text-[10px] text-slate-500 uppercase">Ganancia neta</p><p class="font-bold text-emerald-300 text-lg">${money(b.ganancia_neta)}</p></div>
-        <div class="bg-base rounded-xl py-3"><p class="text-[10px] text-slate-500 uppercase">Costo stand</p><p class="font-bold text-slate-200">${money(b.costo_stand)}</p></div>
-        <div class="bg-base rounded-xl py-3"><p class="text-[10px] text-slate-500 uppercase">Vendidas</p><p class="font-bold text-slate-100">${b.unidades_vendidas}/${b.unidades_llevadas}</p></div>
+    const estrella = r.producto_estrella;
+    const pctV = r.porcentaje_vendido || 0;
+    const gananciaColor = (r.ganancia_neta || 0) >= 0 ? "text-emerald-300" : "text-rose-300";
+    abrirModal("📊 Reporte de la feria", `
+      ${estrella
+        ? `<div class="rounded-xl p-3 bg-gradient-to-br from-amber-500/15 to-orange-500/10 border border-amber-500/30">
+             <p class="text-[10px] text-amber-300 uppercase tracking-wide">⭐ Producto estrella</p>
+             <p class="font-bold text-slate-100 text-lg leading-tight">${esc(estrella.producto_nombre)}</p>
+             <p class="text-xs text-slate-400">${estrella.unidades} unidades · ${money(estrella.recaudado)}</p>
+           </div>`
+        : `<div class="rounded-xl p-3 bg-base border border-edge text-sm text-slate-500">No se registraron ventas.</div>`}
+
+      <div>
+        <div class="flex justify-between text-xs mb-1">
+          <span class="text-slate-400">Inventario vendido</span>
+          <span class="text-slate-200 font-semibold">${pctV}% vendido · ${r.porcentaje_sobrante || 0}% sobra</span>
+        </div>
+        <div class="h-3 rounded-full bg-base overflow-hidden border border-edge">
+          <div class="h-full rounded-full bg-gradient-to-r from-teal-500 to-emerald-500" style="width:${Math.min(100, pctV)}%"></div>
+        </div>
+        <p class="text-[11px] text-slate-500 mt-1">${r.unidades_vendidas || 0} vendidas · ${r.unidades_restantes || 0} sobrantes · ${r.unidades_merma || 0} mermas de ${r.unidades_llevadas || 0} llevadas</p>
       </div>
+
+      <div class="rounded-xl bg-base border border-edge divide-y divide-edge text-sm">
+        <div class="flex justify-between px-3 py-2"><span class="text-slate-400">Recaudado (caja)</span><b class="text-teal-300">${money(r.total_recaudado)}</b></div>
+        <div class="flex justify-between px-3 py-2"><span class="text-slate-400">− Costo stand</span><b class="text-slate-300">${money(r.costo_stand)}</b></div>
+        <div class="flex justify-between px-3 py-2"><span class="text-slate-400">− Costo material</span><b class="text-slate-300">${money(r.costo_material)}</b></div>
+        <div class="flex justify-between px-3 py-2.5 bg-cardh"><span class="text-slate-200 font-semibold">Ganancia neta final</span><b class="${gananciaColor} text-lg">${money(r.ganancia_neta)}</b></div>
+      </div>
+
       <div>
         <p class="text-xs text-slate-400 mb-1">Stock devuelto al inventario:</p>
         ${dev.length
-          ? `<ul class="text-sm text-slate-300 space-y-1 max-h-40 overflow-y-auto">${dev.map((d) => `<li class="flex justify-between bg-base rounded-lg px-3 py-1.5"><span class="truncate">${esc(d.producto_nombre)}</span><b>${d.cantidad_devuelta}</b></li>`).join("")}</ul>`
+          ? `<ul class="text-sm text-slate-300 space-y-1 max-h-32 overflow-y-auto">${dev.map((d) => `<li class="flex justify-between bg-base rounded-lg px-3 py-1.5"><span class="truncate">${esc(d.producto_nombre)}</span><b>${d.cantidad_devuelta}</b></li>`).join("")}</ul>`
           : `<p class="text-sm text-slate-500">Se vendió todo. 🎉</p>`}
       </div>
       <button onclick="cerrarModal(); cerrarVistaPOS();" class="w-full py-3 rounded-xl font-semibold text-slate-900 bg-gradient-to-r from-teal-500 to-cyan-500">Listo</button>`);

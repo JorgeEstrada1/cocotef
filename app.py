@@ -172,6 +172,23 @@ def migrar_esquema():
         if "inicio_impresion" not in proy_cols:
             conn.execute(text("ALTER TABLE proyectos ADD COLUMN inicio_impresion DATETIME"))
 
+        # --- Módulo de Ferias (v2.0+): métricas de material y funciones de venta ---
+        tablas = inspect(db.engine).get_table_names()
+        if "ferias" in tablas:
+            feria_cols = [c["name"] for c in inspect(db.engine).get_columns("ferias")]
+            if "costo_material" not in feria_cols:
+                conn.execute(text("ALTER TABLE ferias ADD COLUMN costo_material FLOAT DEFAULT 0"))
+        if "ferias_inventario" in tablas:
+            inv_cols = [c["name"] for c in inspect(db.engine).get_columns("ferias_inventario")]
+            if "cantidad_merma" not in inv_cols:
+                conn.execute(text("ALTER TABLE ferias_inventario ADD COLUMN cantidad_merma INTEGER DEFAULT 0"))
+        if "ferias_ventas" in tablas:
+            venta_cols = [c["name"] for c in inspect(db.engine).get_columns("ferias_ventas")]
+            if "tipo" not in venta_cols:
+                conn.execute(text("ALTER TABLE ferias_ventas ADD COLUMN tipo VARCHAR(20) DEFAULT 'venta'"))
+            if "nota" not in venta_cols:
+                conn.execute(text("ALTER TABLE ferias_ventas ADD COLUMN nota VARCHAR(200)"))
+
 
 def migrar_y_sembrar_usuarios():
     """
@@ -773,9 +790,12 @@ def registrar_rutas(app):
             "producto_nombre": i.producto_nombre,
             "cantidad_llevada": i.cantidad_llevada or 0,
             "cantidad_vendida": i.cantidad_vendida or 0,
+            "cantidad_merma": i.cantidad_merma or 0,
             "cantidad_restante": i.cantidad_restante,
             "precio_unitario": i.precio_unitario or 0.0,
             "recaudado": i.recaudado,
+            "valor_proyectado": i.valor_proyectado,
+            "valor_restante": i.valor_restante,
         }
 
     def _feria_a_json(f, detalle=False):
@@ -784,11 +804,15 @@ def registrar_rutas(app):
             "nombre": f.nombre,
             "fecha_iso": f.fecha.isoformat() if f.fecha else None,
             "costo_stand": f.costo_stand or 0.0,
+            "costo_material": f.costo_material or 0.0,
             "estado": f.estado,
             "total_recaudado": round(f.total_recaudado or 0.0, 2),
+            "total_proyectado": f.total_proyectado,
+            "valor_restante_mesa": f.valor_restante_mesa,
             "ganancia_neta": f.ganancia_neta,
             "unidades_vendidas": f.unidades_vendidas,
             "unidades_llevadas": f.unidades_llevadas,
+            "unidades_merma": f.unidades_merma,
         }
         if detalle:
             base["inventario"] = [_feria_inv_a_json(i) for i in f.inventario]
@@ -796,6 +820,7 @@ def registrar_rutas(app):
                 {
                     "id": v.id, "producto_nombre": v.producto_nombre,
                     "cantidad": v.cantidad, "precio_total": v.precio_total,
+                    "tipo": v.tipo or "venta", "nota": v.nota or "",
                     "fecha_hora_iso": v.fecha_hora.isoformat() if v.fecha_hora else None,
                 }
                 for v in f.ventas
@@ -816,8 +841,13 @@ def registrar_rutas(app):
                 costo_stand = float(datos.get("costo_stand") or 0)
             except (ValueError, TypeError):
                 costo_stand = 0.0
+            try:
+                costo_material = float(datos.get("costo_material") or 0)
+            except (ValueError, TypeError):
+                costo_material = 0.0
             fecha = _parse_fecha_opt(datos.get("fecha")) or date.today()
-            feria = Feria(nombre=nombre, costo_stand=costo_stand, fecha=fecha,
+            feria = Feria(nombre=nombre, costo_stand=costo_stand,
+                          costo_material=costo_material, fecha=fecha,
                           estado="Activa", total_recaudado=0.0)
             db.session.add(feria)
             db.session.commit()
@@ -871,6 +901,62 @@ def registrar_rutas(app):
         return jsonify({"ok": True,
                         "inventario": [_feria_inv_a_json(i) for i in f.inventario]})
 
+    @app.route("/api/v1/ferias/<int:fid>/inventario/<int:item_id>",
+               methods=["PUT", "PATCH", "DELETE"])
+    def api_feria_inventario_item(fid, item_id):
+        """
+        Edita (PUT/PATCH) o elimina (DELETE) un producto del inventario de la feria.
+        Al editar se pueden ajustar 'precio_unitario' y 'cantidad_llevada'; la
+        cantidad no puede quedar por debajo de lo ya vendido + mermado.
+        """
+        if not _api_key_ok():
+            return jsonify({"ok": False, "error": "API key inválida."}), 401
+        f = Feria.query.get_or_404(fid)
+        item = FeriaInventario.query.filter_by(id=item_id, feria_id=f.id).first()
+        if item is None:
+            return jsonify({"ok": False, "error": "Producto no encontrado en la feria."}), 404
+        if f.estado != "Activa":
+            return jsonify({"ok": False,
+                            "error": "La feria está finalizada; no se puede modificar el stock."}), 400
+
+        if request.method == "DELETE":
+            db.session.delete(item)
+            db.session.commit()
+            return jsonify({"ok": True, "eliminado": item_id})
+
+        # PUT/PATCH — edición de precio y/o cantidad
+        datos = request.get_json(silent=True) or request.form
+        comprometido = (item.cantidad_vendida or 0) + (item.cantidad_merma or 0)
+
+        if "precio_unitario" in datos or "precio" in datos:
+            try:
+                item.precio_unitario = max(float(datos.get("precio_unitario")
+                                                 if "precio_unitario" in datos
+                                                 else datos.get("precio")), 0.0)
+            except (ValueError, TypeError):
+                return jsonify({"ok": False, "error": "Precio inválido."}), 400
+
+        if "cantidad_llevada" in datos or "cantidad" in datos:
+            try:
+                nueva = int(float(datos.get("cantidad_llevada")
+                                  if "cantidad_llevada" in datos
+                                  else datos.get("cantidad")))
+            except (ValueError, TypeError):
+                return jsonify({"ok": False, "error": "Cantidad inválida."}), 400
+            if nueva < comprometido:
+                return jsonify({"ok": False,
+                                "error": f"La cantidad no puede ser menor a lo ya movido ({comprometido})."}), 409
+            item.cantidad_llevada = nueva
+
+        if "producto_nombre" in datos or "nombre" in datos:
+            nombre = (datos.get("producto_nombre") or datos.get("nombre") or "").strip()
+            if nombre:
+                item.producto_nombre = nombre
+
+        db.session.commit()
+        return jsonify({"ok": True, "item": _feria_inv_a_json(item),
+                        "feria": _feria_a_json(f)})
+
     @app.route("/api/v1/ferias/<int:fid>/venta-rapida", methods=["POST"])
     def api_feria_venta_rapida(fid):
         """
@@ -903,22 +989,154 @@ def registrar_rutas(app):
                             "error": "Sin stock suficiente de ese producto.",
                             "item": _feria_inv_a_json(item)}), 409
 
+        nota = (datos.get("nota") or "").strip()[:200]
         precio_total = round(cantidad * (item.precio_unitario or 0.0), 2)
         item.cantidad_vendida = (item.cantidad_vendida or 0) + cantidad
         f.total_recaudado = round((f.total_recaudado or 0.0) + precio_total, 2)
         venta = FeriaVenta(feria_id=f.id, inventario_id=item.id,
                            producto_nombre=item.producto_nombre,
                            cantidad=cantidad, precio_total=precio_total,
+                           tipo="venta", nota=nota or None,
                            fecha_hora=datetime.utcnow())
         db.session.add(venta)
         db.session.commit()
         return jsonify({
             "ok": True,
             "venta": {"id": venta.id, "producto_nombre": venta.producto_nombre,
-                      "cantidad": venta.cantidad, "precio_total": venta.precio_total},
+                      "cantidad": venta.cantidad, "precio_total": venta.precio_total,
+                      "nota": venta.nota or ""},
             "item": _feria_inv_a_json(item),
             "total_recaudado": f.total_recaudado,
+            "total_proyectado": f.total_proyectado,
+            "valor_restante_mesa": f.valor_restante_mesa,
             "ganancia_neta": f.ganancia_neta,
+            "unidades_vendidas": f.unidades_vendidas,
+        })
+
+    @app.route("/api/v1/ferias/<int:fid>/venta-combo", methods=["POST"])
+    def api_feria_venta_combo(fid):
+        """
+        Venta tipo combo / descuento rápido (ej. "3 Llaveros por 20 Bs" o
+        "Combo PopMe + Llavero"). Recibe una lista de ítems con su cantidad y un
+        precio total pactado; descuenta las unidades de cada producto y cobra el
+        precio del combo a la caja (que puede diferir de la suma unitaria).
+        """
+        if not _api_key_ok():
+            return jsonify({"ok": False, "error": "API key inválida."}), 401
+        f = Feria.query.get_or_404(fid)
+        if f.estado != "Activa":
+            return jsonify({"ok": False, "error": "La feria ya está finalizada."}), 400
+
+        datos = request.get_json(silent=True) or request.form
+        lineas = datos.get("items") or []
+        if isinstance(lineas, str):
+            lineas = []
+        if not lineas:
+            return jsonify({"ok": False, "error": "El combo necesita al menos un producto."}), 400
+
+        try:
+            precio_total = round(float(datos.get("precio_total") or datos.get("precio") or 0), 2)
+        except (ValueError, TypeError):
+            return jsonify({"ok": False, "error": "Precio del combo inválido."}), 400
+        if precio_total < 0:
+            precio_total = 0.0
+
+        # Resuelve y valida stock de cada línea antes de tocar nada.
+        resueltas = []
+        for ln in lineas:
+            inv_id = (ln or {}).get("inventario_id") or (ln or {}).get("item_id")
+            try:
+                cant = max(int(float((ln or {}).get("cantidad") or 1)), 1)
+            except (ValueError, TypeError):
+                cant = 1
+            it = FeriaInventario.query.filter_by(id=int(inv_id), feria_id=f.id).first() if inv_id else None
+            if it is None:
+                return jsonify({"ok": False, "error": "Un producto del combo no existe en la feria."}), 404
+            if it.cantidad_restante < cant:
+                return jsonify({"ok": False,
+                                "error": f"Sin stock suficiente de «{it.producto_nombre}».",
+                                "item": _feria_inv_a_json(it)}), 409
+            resueltas.append((it, cant))
+
+        # Aplica el descuento de stock y arma un nombre legible del combo.
+        total_unid = 0
+        partes = []
+        for it, cant in resueltas:
+            it.cantidad_vendida = (it.cantidad_vendida or 0) + cant
+            total_unid += cant
+            partes.append(f"{cant}× {it.producto_nombre}")
+
+        descripcion = (datos.get("descripcion") or datos.get("nombre") or "").strip()
+        if not descripcion:
+            descripcion = "Combo: " + " + ".join(partes)
+        nota = (datos.get("nota") or "").strip()[:200]
+
+        f.total_recaudado = round((f.total_recaudado or 0.0) + precio_total, 2)
+        venta = FeriaVenta(feria_id=f.id,
+                           inventario_id=resueltas[0][0].id,
+                           producto_nombre=descripcion[:120],
+                           cantidad=total_unid, precio_total=precio_total,
+                           tipo="combo", nota=nota or None,
+                           fecha_hora=datetime.utcnow())
+        db.session.add(venta)
+        db.session.commit()
+        return jsonify({
+            "ok": True,
+            "venta": {"id": venta.id, "producto_nombre": venta.producto_nombre,
+                      "cantidad": venta.cantidad, "precio_total": venta.precio_total,
+                      "tipo": "combo", "nota": venta.nota or ""},
+            "items": [_feria_inv_a_json(it) for it, _ in resueltas],
+            "total_recaudado": f.total_recaudado,
+            "total_proyectado": f.total_proyectado,
+            "valor_restante_mesa": f.valor_restante_mesa,
+            "ganancia_neta": f.ganancia_neta,
+            "unidades_vendidas": f.unidades_vendidas,
+        })
+
+    @app.route("/api/v1/ferias/<int:fid>/merma", methods=["POST"])
+    def api_feria_merma(fid):
+        """
+        Registra mermas / muestras gratis / canjes: descuenta unidades del stock
+        restante SIN sumar dinero a la caja. Útil para piezas dañadas o regaladas.
+        """
+        if not _api_key_ok():
+            return jsonify({"ok": False, "error": "API key inválida."}), 401
+        f = Feria.query.get_or_404(fid)
+        if f.estado != "Activa":
+            return jsonify({"ok": False, "error": "La feria ya está finalizada."}), 400
+
+        datos = request.get_json(silent=True) or request.form
+        inv_id = datos.get("inventario_id") or datos.get("item_id")
+        item = FeriaInventario.query.filter_by(id=int(inv_id), feria_id=f.id).first() if inv_id else None
+        if item is None:
+            return jsonify({"ok": False, "error": "Producto no encontrado en la feria."}), 404
+
+        try:
+            cantidad = max(int(float(datos.get("cantidad") or 1)), 1)
+        except (ValueError, TypeError):
+            cantidad = 1
+        if item.cantidad_restante < cantidad:
+            return jsonify({"ok": False,
+                            "error": "Sin stock suficiente para registrar la merma.",
+                            "item": _feria_inv_a_json(item)}), 409
+
+        nota = (datos.get("nota") or datos.get("motivo") or "").strip()[:200]
+        item.cantidad_merma = (item.cantidad_merma or 0) + cantidad
+        venta = FeriaVenta(feria_id=f.id, inventario_id=item.id,
+                           producto_nombre=item.producto_nombre,
+                           cantidad=cantidad, precio_total=0.0,
+                           tipo="merma", nota=nota or None,
+                           fecha_hora=datetime.utcnow())
+        db.session.add(venta)
+        db.session.commit()
+        return jsonify({
+            "ok": True,
+            "merma": {"id": venta.id, "producto_nombre": venta.producto_nombre,
+                      "cantidad": venta.cantidad, "nota": venta.nota or ""},
+            "item": _feria_inv_a_json(item),
+            "total_proyectado": f.total_proyectado,
+            "valor_restante_mesa": f.valor_restante_mesa,
+            "unidades_merma": f.unidades_merma,
         })
 
     @app.route("/api/v1/ferias/<int:fid>/cerrar", methods=["POST"])
@@ -935,12 +1153,37 @@ def registrar_rutas(app):
             return jsonify({"ok": False, "error": "La feria ya estaba cerrada.",
                             "feria": _feria_a_json(f, detalle=True)}), 400
 
+        # Permite ajustar el costo de material justo al cierre (a menudo se sabe al final).
+        datos = request.get_json(silent=True) or request.form or {}
+        if "costo_material" in datos:
+            try:
+                f.costo_material = max(float(datos.get("costo_material") or 0), 0.0)
+            except (ValueError, TypeError):
+                pass
+
         # Stock no vendido que retorna al inventario general (reporte).
         devuelto = [
             {"producto_id": i.producto_id, "producto_nombre": i.producto_nombre,
              "cantidad_devuelta": i.cantidad_restante}
             for i in f.inventario if i.cantidad_restante > 0
         ]
+
+        # Reporte de rendimiento del evento.
+        estrella = f.producto_estrella
+        pct_vendido = f.porcentaje_vendido
+        reporte = {
+            "producto_estrella": estrella,
+            "porcentaje_vendido": pct_vendido,
+            "porcentaje_sobrante": round(100.0 - pct_vendido, 1),
+            "unidades_vendidas": f.unidades_vendidas,
+            "unidades_llevadas": f.unidades_llevadas,
+            "unidades_restantes": f.unidades_restantes,
+            "unidades_merma": f.unidades_merma,
+            "total_recaudado": round(f.total_recaudado or 0.0, 2),
+            "costo_stand": f.costo_stand or 0.0,
+            "costo_material": f.costo_material or 0.0,
+            "ganancia_neta": f.ganancia_neta,
+        }
 
         f.estado = "Finalizada"
 
@@ -952,6 +1195,14 @@ def registrar_rutas(app):
                 monto=f.costo_stand,
                 fecha=f.fecha or date.today(),
             ))
+        # El material/mercadería consumida también es un gasto real de la operación.
+        if (f.costo_material or 0) > 0:
+            db.session.add(Gasto(
+                categoria="Filamento",
+                descripcion=f"Material feria: {f.nombre}",
+                monto=f.costo_material,
+                fecha=f.fecha or date.today(),
+            ))
         db.session.commit()
 
         return jsonify({
@@ -960,10 +1211,12 @@ def registrar_rutas(app):
             "balance": {
                 "total_recaudado": round(f.total_recaudado or 0.0, 2),
                 "costo_stand": f.costo_stand or 0.0,
+                "costo_material": f.costo_material or 0.0,
                 "ganancia_neta": f.ganancia_neta,
                 "unidades_vendidas": f.unidades_vendidas,
                 "unidades_llevadas": f.unidades_llevadas,
             },
+            "reporte": reporte,
             "stock_devuelto": devuelto,
         })
 
