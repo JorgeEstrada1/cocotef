@@ -28,7 +28,8 @@ from sqlalchemy import extract, inspect, text
 
 from config import Config
 from models import (db, User, Filamento, Proyecto, Venta, Gasto,
-                    Liquidacion, Inversion, AbonoInversion)
+                    Liquidacion, Inversion, AbonoInversion,
+                    Feria, FeriaInventario, FeriaVenta)
 
 MESES = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
          "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
@@ -166,6 +167,10 @@ def migrar_esquema():
             conn.execute(text("ALTER TABLE proyectos ADD COLUMN adelanto FLOAT DEFAULT 0"))
         if "imagen_filename" not in proy_cols:
             conn.execute(text("ALTER TABLE proyectos ADD COLUMN imagen_filename VARCHAR(120)"))
+        if "horas_impresion" not in proy_cols:
+            conn.execute(text("ALTER TABLE proyectos ADD COLUMN horas_impresion FLOAT DEFAULT 0"))
+        if "inicio_impresion" not in proy_cols:
+            conn.execute(text("ALTER TABLE proyectos ADD COLUMN inicio_impresion DATETIME"))
 
 
 def migrar_y_sembrar_usuarios():
@@ -603,6 +608,8 @@ def registrar_rutas(app):
         nuevo = request.form.get("estado") or (request.get_json(silent=True) or {}).get("estado")
         if nuevo not in Proyecto.ESTADOS:
             return jsonify({"ok": False, "error": "Estado inválido."}), 400
+        if nuevo == "Imprimiendo" and p.estado != "Imprimiendo":
+            p.inicio_impresion = datetime.utcnow()
         p.estado = nuevo
         db.session.commit()
         return jsonify({
@@ -653,6 +660,7 @@ def registrar_rutas(app):
         return enviada == requerida
 
     def _proyecto_a_json(p):
+        fin = p.fin_impresion_estimado
         return {
             "id": p.id,
             "nombre": p.nombre,
@@ -661,6 +669,13 @@ def registrar_rutas(app):
             "foto_url": _url_imagen(p.imagen_filename),
             "fecha_entrega_iso": p.fecha_entrega.isoformat() if p.fecha_entrega else None,
             "saldo_pendiente": p.saldo_pendiente,
+            # Monitor de impresión
+            "tiempo_estimado_h": p.tiempo_estimado_h or 0.0,
+            "horas_impresion": p.horas_impresion or 0.0,
+            "horas_totales_impresion": p.horas_totales_impresion,
+            "inicio_impresion_iso": p.inicio_impresion.isoformat() if p.inicio_impresion else None,
+            "fin_impresion_iso": fin.isoformat() if fin else None,
+            "imprimiendo": p.estado == "Imprimiendo",
         }
 
     def _filamento_a_json(f):
@@ -706,6 +721,9 @@ def registrar_rutas(app):
                             "error": "Estado inválido.",
                             "estados_validos": Proyecto.ESTADOS}), 400
         p = Proyecto.query.get_or_404(pid)
+        # Al arrancar la impresión guardamos la hora de inicio para el monitor/timer.
+        if estado == "Imprimiendo" and p.estado != "Imprimiendo":
+            p.inicio_impresion = datetime.utcnow()
         p.estado = estado
         db.session.commit()
         return jsonify({"ok": True, "pedido": _proyecto_a_json(p),
@@ -720,6 +738,233 @@ def registrar_rutas(app):
             "ok": True,
             "count": len(filamentos),
             "filamentos": [_filamento_a_json(f) for f in filamentos],
+        })
+
+    @app.route("/api/v1/pedidos/<int:pid>/foto", methods=["POST"])
+    def api_subir_foto_pedido(pid):
+        """
+        Sube la foto del resultado final de un pedido desde la cámara del celular.
+        La PWA envía un multipart/form-data con el campo 'foto'. Reemplaza la
+        anterior si existía y devuelve la URL pública de la nueva imagen.
+        """
+        if not _api_key_ok():
+            return jsonify({"ok": False, "error": "API key inválida."}), 401
+        p = Proyecto.query.get_or_404(pid)
+        archivo = request.files.get("foto") or request.files.get("imagen")
+        if not archivo or not archivo.filename:
+            return jsonify({"ok": False, "error": "No se recibió ninguna foto."}), 400
+        guardada = _guardar_imagen(archivo)
+        if not guardada:
+            return jsonify({"ok": False,
+                            "error": "Formato no soportado (usa JPG, PNG o WEBP)."}), 400
+        _borrar_imagen(p.imagen_filename)   # elimina la foto vieja para no dejar basura
+        p.imagen_filename = guardada
+        db.session.commit()
+        return jsonify({"ok": True, "pedido": _proyecto_a_json(p),
+                        "foto_url": _url_imagen(p.imagen_filename)})
+
+    # ======================================================================
+    #  Ferias y Eventos (POS móvil) — API REST v1
+    # ======================================================================
+    def _feria_inv_a_json(i):
+        return {
+            "id": i.id,
+            "producto_id": i.producto_id,
+            "producto_nombre": i.producto_nombre,
+            "cantidad_llevada": i.cantidad_llevada or 0,
+            "cantidad_vendida": i.cantidad_vendida or 0,
+            "cantidad_restante": i.cantidad_restante,
+            "precio_unitario": i.precio_unitario or 0.0,
+            "recaudado": i.recaudado,
+        }
+
+    def _feria_a_json(f, detalle=False):
+        base = {
+            "id": f.id,
+            "nombre": f.nombre,
+            "fecha_iso": f.fecha.isoformat() if f.fecha else None,
+            "costo_stand": f.costo_stand or 0.0,
+            "estado": f.estado,
+            "total_recaudado": round(f.total_recaudado or 0.0, 2),
+            "ganancia_neta": f.ganancia_neta,
+            "unidades_vendidas": f.unidades_vendidas,
+            "unidades_llevadas": f.unidades_llevadas,
+        }
+        if detalle:
+            base["inventario"] = [_feria_inv_a_json(i) for i in f.inventario]
+            base["ventas"] = [
+                {
+                    "id": v.id, "producto_nombre": v.producto_nombre,
+                    "cantidad": v.cantidad, "precio_total": v.precio_total,
+                    "fecha_hora_iso": v.fecha_hora.isoformat() if v.fecha_hora else None,
+                }
+                for v in f.ventas
+            ]
+        return base
+
+    @app.route("/api/v1/ferias", methods=["GET", "POST"])
+    def api_ferias():
+        if not _api_key_ok():
+            return jsonify({"ok": False, "error": "API key inválida."}), 401
+
+        if request.method == "POST":
+            datos = request.get_json(silent=True) or request.form
+            nombre = (datos.get("nombre") or "").strip()
+            if not nombre:
+                return jsonify({"ok": False, "error": "El nombre es obligatorio."}), 400
+            try:
+                costo_stand = float(datos.get("costo_stand") or 0)
+            except (ValueError, TypeError):
+                costo_stand = 0.0
+            fecha = _parse_fecha_opt(datos.get("fecha")) or date.today()
+            feria = Feria(nombre=nombre, costo_stand=costo_stand, fecha=fecha,
+                          estado="Activa", total_recaudado=0.0)
+            db.session.add(feria)
+            db.session.commit()
+            return jsonify({"ok": True, "feria": _feria_a_json(feria, detalle=True)}), 201
+
+        # GET: listar (activas primero, luego por fecha desc)
+        ferias = Feria.query.order_by(Feria.creado.desc()).all()
+        ferias.sort(key=lambda f: (f.estado != "Activa",))
+        return jsonify({"ok": True, "count": len(ferias),
+                        "ferias": [_feria_a_json(f) for f in ferias]})
+
+    @app.route("/api/v1/ferias/<int:fid>", methods=["GET"])
+    def api_feria_detalle(fid):
+        if not _api_key_ok():
+            return jsonify({"ok": False, "error": "API key inválida."}), 401
+        f = Feria.query.get_or_404(fid)
+        return jsonify({"ok": True, "feria": _feria_a_json(f, detalle=True)})
+
+    @app.route("/api/v1/ferias/<int:fid>/inventario", methods=["GET", "POST"])
+    def api_feria_inventario(fid):
+        if not _api_key_ok():
+            return jsonify({"ok": False, "error": "API key inválida."}), 401
+        f = Feria.query.get_or_404(fid)
+
+        if request.method == "POST":
+            if f.estado != "Activa":
+                return jsonify({"ok": False,
+                                "error": "La feria está finalizada; no se puede cargar stock."}), 400
+            datos = request.get_json(silent=True) or request.form
+            nombre = (datos.get("producto_nombre") or datos.get("nombre") or "").strip()
+            if not nombre:
+                return jsonify({"ok": False, "error": "El nombre del producto es obligatorio."}), 400
+            try:
+                cantidad = int(float(datos.get("cantidad_llevada") or datos.get("cantidad") or 0))
+                precio = float(datos.get("precio_unitario") or datos.get("precio") or 0)
+            except (ValueError, TypeError):
+                return jsonify({"ok": False, "error": "Cantidad o precio inválidos."}), 400
+            producto_id = datos.get("producto_id")
+            item = FeriaInventario(
+                feria_id=f.id,
+                producto_id=int(producto_id) if producto_id else None,
+                producto_nombre=nombre,
+                cantidad_llevada=max(cantidad, 0),
+                cantidad_vendida=0,
+                precio_unitario=max(precio, 0.0),
+            )
+            db.session.add(item)
+            db.session.commit()
+            return jsonify({"ok": True, "item": _feria_inv_a_json(item)}), 201
+
+        return jsonify({"ok": True,
+                        "inventario": [_feria_inv_a_json(i) for i in f.inventario]})
+
+    @app.route("/api/v1/ferias/<int:fid>/venta-rapida", methods=["POST"])
+    def api_feria_venta_rapida(fid):
+        """
+        Venta instantánea en 1 toque: +1 a la cantidad vendida del producto,
+        calcula el precio_total, registra la FeriaVenta y actualiza el total
+        recaudado de la feria. Devuelve el estado actualizado para refrescar la caja.
+        """
+        if not _api_key_ok():
+            return jsonify({"ok": False, "error": "API key inválida."}), 401
+        f = Feria.query.get_or_404(fid)
+        if f.estado != "Activa":
+            return jsonify({"ok": False, "error": "La feria ya está finalizada."}), 400
+
+        datos = request.get_json(silent=True) or request.form
+        inv_id = datos.get("inventario_id") or datos.get("item_id")
+        item = None
+        if inv_id:
+            item = FeriaInventario.query.filter_by(id=int(inv_id), feria_id=f.id).first()
+        if item is None:
+            return jsonify({"ok": False, "error": "Producto no encontrado en la feria."}), 404
+
+        try:
+            cantidad = int(float(datos.get("cantidad") or 1))
+        except (ValueError, TypeError):
+            cantidad = 1
+        cantidad = max(cantidad, 1)
+
+        if item.cantidad_restante < cantidad:
+            return jsonify({"ok": False,
+                            "error": "Sin stock suficiente de ese producto.",
+                            "item": _feria_inv_a_json(item)}), 409
+
+        precio_total = round(cantidad * (item.precio_unitario or 0.0), 2)
+        item.cantidad_vendida = (item.cantidad_vendida or 0) + cantidad
+        f.total_recaudado = round((f.total_recaudado or 0.0) + precio_total, 2)
+        venta = FeriaVenta(feria_id=f.id, inventario_id=item.id,
+                           producto_nombre=item.producto_nombre,
+                           cantidad=cantidad, precio_total=precio_total,
+                           fecha_hora=datetime.utcnow())
+        db.session.add(venta)
+        db.session.commit()
+        return jsonify({
+            "ok": True,
+            "venta": {"id": venta.id, "producto_nombre": venta.producto_nombre,
+                      "cantidad": venta.cantidad, "precio_total": venta.precio_total},
+            "item": _feria_inv_a_json(item),
+            "total_recaudado": f.total_recaudado,
+            "ganancia_neta": f.ganancia_neta,
+        })
+
+    @app.route("/api/v1/ferias/<int:fid>/cerrar", methods=["POST"])
+    def api_feria_cerrar(fid):
+        """
+        Cierra la feria: calcula el balance total y la ganancia neta, marca la
+        feria como 'Finalizada' y reporta el stock no vendido que vuelve al
+        inventario general. Registra el costo del stand como Gasto de la operación.
+        """
+        if not _api_key_ok():
+            return jsonify({"ok": False, "error": "API key inválida."}), 401
+        f = Feria.query.get_or_404(fid)
+        if f.estado == "Finalizada":
+            return jsonify({"ok": False, "error": "La feria ya estaba cerrada.",
+                            "feria": _feria_a_json(f, detalle=True)}), 400
+
+        # Stock no vendido que retorna al inventario general (reporte).
+        devuelto = [
+            {"producto_id": i.producto_id, "producto_nombre": i.producto_nombre,
+             "cantidad_devuelta": i.cantidad_restante}
+            for i in f.inventario if i.cantidad_restante > 0
+        ]
+
+        f.estado = "Finalizada"
+
+        # El alquiler del stand es un gasto real de la operación (categoría Otro).
+        if (f.costo_stand or 0) > 0:
+            db.session.add(Gasto(
+                categoria="Otro",
+                descripcion=f"Stand feria: {f.nombre}",
+                monto=f.costo_stand,
+                fecha=f.fecha or date.today(),
+            ))
+        db.session.commit()
+
+        return jsonify({
+            "ok": True,
+            "feria": _feria_a_json(f, detalle=True),
+            "balance": {
+                "total_recaudado": round(f.total_recaudado or 0.0, 2),
+                "costo_stand": f.costo_stand or 0.0,
+                "ganancia_neta": f.ganancia_neta,
+                "unidades_vendidas": f.unidades_vendidas,
+                "unidades_llevadas": f.unidades_llevadas,
+            },
+            "stock_devuelto": devuelto,
         })
 
     # ---------- Proyectos / Impresiones ----------
@@ -762,6 +1007,7 @@ def registrar_rutas(app):
             estado=f.get("estado") or "Diseñando",
             peso_g=float(f.get("peso_g") or 0),
             tiempo_estimado_h=float(f.get("tiempo_estimado_h") or 0),
+            horas_impresion=float(f.get("horas_impresion") or 0),
             filamento_id=int(f["filamento_id"]) if f.get("filamento_id") else None,
             fecha_entrega=_parse_fecha_opt(f.get("fecha_entrega")),
             precio_total=float(f.get("precio_total") or 0),
@@ -800,6 +1046,8 @@ def registrar_rutas(app):
             p.estado = f.get("estado") if f.get("estado") in Proyecto.ESTADOS else p.estado
             p.peso_g = float(f.get("peso_g") or 0)
             p.tiempo_estimado_h = float(f.get("tiempo_estimado_h") or 0)
+            if f.get("horas_impresion") is not None and f.get("horas_impresion") != "":
+                p.horas_impresion = float(f.get("horas_impresion") or 0)
             p.filamento_id = int(f["filamento_id"]) if f.get("filamento_id") else None
             p.fecha_entrega = _parse_fecha_opt(f.get("fecha_entrega"))
             p.precio_total = float(f.get("precio_total") or 0)

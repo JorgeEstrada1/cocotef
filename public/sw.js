@@ -1,7 +1,7 @@
 /* Service Worker — Taller 3D App (frontend Vercel).
    Cachea el "app shell" (cache-first) para arranque rápido/offline. Las llamadas
    a la API (otro origen: PythonAnywhere) van siempre a la red. */
-const CACHE = "taller3d-app-v1";
+const CACHE = "taller3d-app-v2";
 const SHELL = ["/", "/index.html", "/app.js", "/config.js", "/manifest.json", "/icon.svg"];
 
 self.addEventListener("install", (event) => {
@@ -43,5 +43,30 @@ self.addEventListener("fetch", (event) => {
         return resp;
       })
     )
+  );
+});
+
+/* ----- Notificaciones (Notification API) -----
+   Las alertas locales (timer a cero, filamento < 100 g) se disparan desde la
+   página con reg.showNotification(). Aquí manejamos el clic para enfocar la app
+   y, opcionalmente, notificaciones push si en el futuro se envían desde el backend. */
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((cs) => {
+      for (const c of cs) { if ("focus" in c) return c.focus(); }
+      if (self.clients.openWindow) return self.clients.openWindow("/");
+    })
+  );
+});
+
+self.addEventListener("push", (event) => {
+  let data = { title: "Taller 3D", body: "Tienes una alerta nueva." };
+  try { if (event.data) data = Object.assign(data, event.data.json()); } catch (e) {}
+  event.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body, icon: "/icon.svg", badge: "/icon.svg",
+      tag: data.tag || "taller3d", vibrate: [120, 60, 120],
+    })
   );
 });

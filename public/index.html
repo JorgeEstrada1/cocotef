@@ -61,6 +61,69 @@
   <div id="lista-filamentos" class="space-y-3"></div>
 </section>
 
+<!-- ============ SECCIÓN: FERIAS (POS móvil) ============ -->
+<section id="sec-ferias" class="hidden px-4 pt-4 space-y-4">
+
+  <!-- Vista LISTA de ferias -->
+  <div id="ferias-lista-wrap" class="space-y-4">
+    <div class="flex items-center justify-between">
+      <h1 class="text-lg font-bold text-slate-100">🎪 Ferias y Eventos</h1>
+      <button onclick="abrirNuevaFeria()"
+              class="px-3 py-1.5 rounded-lg text-sm font-semibold text-slate-900 bg-gradient-to-r from-fuchsia-500 to-pink-500 active:opacity-80">＋ Nueva</button>
+    </div>
+    <div id="lista-ferias" class="space-y-3"></div>
+  </div>
+
+  <!-- Vista POS (una feria abierta) -->
+  <div id="ferias-pos-wrap" class="hidden space-y-4">
+    <!-- Cabecera + caja en tiempo real -->
+    <div class="sticky top-[57px] z-10 -mx-4 px-4 py-3 bg-base/95 backdrop-blur border-b border-edge space-y-2">
+      <div class="flex items-center gap-2">
+        <button onclick="cerrarVistaPOS()" class="px-2 py-1 rounded-lg bg-card border border-edge text-slate-300 active:bg-cardh">←</button>
+        <h1 id="pos-nombre" class="font-bold text-slate-100 truncate flex-1">Feria</h1>
+        <span id="pos-estado" class="text-[11px] px-2 py-0.5 rounded-md border bg-teal-500/15 text-teal-300 border-teal-500/30">Activa</span>
+      </div>
+      <div class="grid grid-cols-3 gap-2 text-center">
+        <div class="bg-card border border-edge rounded-xl py-2">
+          <p class="text-[10px] text-slate-500 uppercase tracking-wide">Caja</p>
+          <p id="pos-caja" class="font-bold text-teal-300 text-lg leading-tight">Bs. 0</p>
+        </div>
+        <div class="bg-card border border-edge rounded-xl py-2">
+          <p class="text-[10px] text-slate-500 uppercase tracking-wide">Ganancia</p>
+          <p id="pos-ganancia" class="font-bold text-emerald-300 text-lg leading-tight">Bs. 0</p>
+        </div>
+        <div class="bg-card border border-edge rounded-xl py-2">
+          <p class="text-[10px] text-slate-500 uppercase tracking-wide">Vendidas</p>
+          <p id="pos-vendidas" class="font-bold text-slate-100 text-lg leading-tight">0</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Botonera POS: un toque = una venta -->
+    <div id="pos-productos" class="grid grid-cols-2 gap-3"></div>
+
+    <div class="flex items-center gap-2 pt-1">
+      <button onclick="abrirAgregarProducto()"
+              class="flex-1 py-3 rounded-xl text-sm font-semibold bg-card border border-edge text-slate-200 active:bg-cardh">＋ Producto</button>
+      <button onclick="cerrarFeria()"
+              class="flex-1 py-3 rounded-xl text-sm font-semibold text-slate-900 bg-gradient-to-r from-amber-500 to-orange-500 active:opacity-80">🏁 Cerrar caja</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ MODAL genérico ============ -->
+<div id="modal" class="hidden fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+  <div class="absolute inset-0 bg-black/60" onclick="cerrarModal()"></div>
+  <div class="relative w-full sm:max-w-md bg-card border border-edge rounded-t-2xl sm:rounded-2xl p-4 space-y-3 max-h-[85vh] overflow-y-auto"
+       style="padding-bottom:calc(env(safe-area-inset-bottom) + 1rem)">
+    <div class="flex items-center justify-between">
+      <h3 id="modal-titulo" class="font-bold text-slate-100">Título</h3>
+      <button onclick="cerrarModal()" class="text-slate-500 text-xl leading-none px-2">✕</button>
+    </div>
+    <div id="modal-body" class="space-y-3"></div>
+  </div>
+</div>
+
 <!-- Toast -->
 <div id="toast" class="fixed left-1/2 -translate-x-1/2 bottom-24 z-40 hidden">
   <div class="px-4 py-2 rounded-xl bg-cardh border border-teal-500/40 text-teal-200 text-sm shadow-2xl"></div>
@@ -69,12 +132,15 @@
 <!-- ============ TAB BAR INFERIOR ============ -->
 <nav class="fixed bottom-0 inset-x-0 z-30 bg-card/95 backdrop-blur border-t border-edge"
      style="padding-bottom: env(safe-area-inset-bottom)">
-  <div class="grid grid-cols-2">
+  <div class="grid grid-cols-3">
     <button id="tab-pedidos" onclick="mostrar('pedidos')" class="py-3 flex flex-col items-center gap-0.5 text-teal-300">
       <span class="text-lg">📦</span><span class="text-[11px] font-medium">Pedidos</span>
     </button>
     <button id="tab-filamentos" onclick="mostrar('filamentos')" class="py-3 flex flex-col items-center gap-0.5 text-slate-500">
       <span class="text-lg">🧵</span><span class="text-[11px] font-medium">Filamentos</span>
+    </button>
+    <button id="tab-ferias" onclick="mostrar('ferias')" class="py-3 flex flex-col items-center gap-0.5 text-slate-500">
+      <span class="text-lg">🎪</span><span class="text-[11px] font-medium">Ferias</span>
     </button>
   </div>
 </nav>

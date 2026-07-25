@@ -87,7 +87,9 @@ class Proyecto(db.Model):
 
     # Datos técnicos
     peso_g = db.Column(db.Float, default=0.0)                 # gramos de la pieza
-    tiempo_estimado_h = db.Column(db.Float, default=0.0)      # horas estimadas
+    tiempo_estimado_h = db.Column(db.Float, default=0.0)      # horas estimadas (slicer)
+    horas_impresion = db.Column(db.Float, default=0.0)        # horas reales de impresión (monitor)
+    inicio_impresion = db.Column(db.DateTime)                 # cuándo se puso a imprimir (para el timer)
     filamento_id = db.Column(db.Integer, db.ForeignKey("filamentos.id"))
     fecha_entrega = db.Column(db.Date)                        # fecha comprometida de entrega
     gcode_filename = db.Column(db.String(120))               # nombre del archivo G-code/3MF en disco
@@ -141,6 +143,22 @@ class Proyecto(db.Model):
         if self.estado == "Entregado" or self.dias_restantes is None:
             return False
         return self.dias_restantes <= 2
+
+    @property
+    def horas_totales_impresion(self):
+        """Duración a usar por el monitor: horas reales si se cargaron, si no las del slicer."""
+        return self.horas_impresion or self.tiempo_estimado_h or 0.0
+
+    @property
+    def fin_impresion_estimado(self):
+        """datetime en que debería terminar la impresión (None si no está imprimiendo)."""
+        if self.estado != "Imprimiendo" or not self.inicio_impresion:
+            return None
+        horas = self.horas_totales_impresion
+        if not horas:
+            return None
+        from datetime import timedelta
+        return self.inicio_impresion + timedelta(hours=horas)
 
     def __repr__(self):
         return f"<Proyecto {self.nombre} ({self.estado})>"
@@ -307,3 +325,87 @@ class Gasto(db.Model):
 
     def __repr__(self):
         return f"<Gasto {self.categoria} ${self.monto}>"
+
+
+# --------------------------------------------------------------------------
+#  Módulo de Ferias y Eventos (POS móvil para vender en vivo)
+# --------------------------------------------------------------------------
+class Feria(db.Model):
+    """
+    Un evento/feria donde se sale a vender. Lleva su propio inventario saliente
+    y sus ventas rápidas. Al cerrarse calcula el balance del día.
+    """
+    __tablename__ = "ferias"
+
+    ESTADOS = ["Activa", "Finalizada"]
+
+    id = db.Column(db.Integer, primary_key=True)
+    nombre = db.Column(db.String(120), nullable=False)        # "Feria Navideña Plaza"
+    fecha = db.Column(db.Date, default=date.today)
+    costo_stand = db.Column(db.Float, default=0.0)            # alquiler del puesto (Bs.)
+    estado = db.Column(db.String(20), default="Activa")
+    total_recaudado = db.Column(db.Float, default=0.0)        # se actualiza con cada venta
+    creado = db.Column(db.DateTime, default=datetime.utcnow)
+
+    inventario = db.relationship("FeriaInventario", backref="feria",
+                                 cascade="all, delete-orphan",
+                                 order_by="FeriaInventario.id")
+    ventas = db.relationship("FeriaVenta", backref="feria",
+                             cascade="all, delete-orphan",
+                             order_by="FeriaVenta.id")
+
+    @property
+    def unidades_vendidas(self):
+        return sum(i.cantidad_vendida or 0 for i in self.inventario)
+
+    @property
+    def unidades_llevadas(self):
+        return sum(i.cantidad_llevada or 0 for i in self.inventario)
+
+    @property
+    def ganancia_neta(self):
+        """Recaudado menos el costo del stand (Bs.)."""
+        return round((self.total_recaudado or 0.0) - (self.costo_stand or 0.0), 2)
+
+    def __repr__(self):
+        return f"<Feria {self.nombre} ({self.estado})>"
+
+
+class FeriaInventario(db.Model):
+    """Stock que se llevó a una feria: cuánto se llevó, cuánto se vendió y a qué precio."""
+    __tablename__ = "ferias_inventario"
+
+    id = db.Column(db.Integer, primary_key=True)
+    feria_id = db.Column(db.Integer, db.ForeignKey("ferias.id"), nullable=False)
+    producto_id = db.Column(db.Integer)                       # opcional (ref. lógica a un producto)
+    producto_nombre = db.Column(db.String(120), nullable=False)
+    cantidad_llevada = db.Column(db.Integer, default=0)
+    cantidad_vendida = db.Column(db.Integer, default=0)
+    precio_unitario = db.Column(db.Float, default=0.0)
+
+    @property
+    def cantidad_restante(self):
+        return max((self.cantidad_llevada or 0) - (self.cantidad_vendida or 0), 0)
+
+    @property
+    def recaudado(self):
+        return round((self.cantidad_vendida or 0) * (self.precio_unitario or 0.0), 2)
+
+    def __repr__(self):
+        return f"<FeriaInventario {self.producto_nombre} {self.cantidad_vendida}/{self.cantidad_llevada}>"
+
+
+class FeriaVenta(db.Model):
+    """Cada venta rápida registrada en la feria (1 toque = 1 registro)."""
+    __tablename__ = "ferias_ventas"
+
+    id = db.Column(db.Integer, primary_key=True)
+    feria_id = db.Column(db.Integer, db.ForeignKey("ferias.id"), nullable=False)
+    inventario_id = db.Column(db.Integer, db.ForeignKey("ferias_inventario.id"))
+    producto_nombre = db.Column(db.String(120), nullable=False)
+    cantidad = db.Column(db.Integer, default=1)
+    precio_total = db.Column(db.Float, default=0.0)
+    fecha_hora = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<FeriaVenta {self.producto_nombre} x{self.cantidad} ${self.precio_total}>"
