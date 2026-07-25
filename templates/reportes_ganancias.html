@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>📊 Ganancias por mes</h2>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <canvas id="chartGanancias" height="80"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="table-responsive">
+    <table class="table table-striped table-hover">
+        <thead>
+            <tr>
+                <th>Mes</th>
+                <th class="text-end">Ingresos</th>
+                <th class="text-end">Gastos</th>
+                <th class="text-end">Ganancia</th>
+                <th class="text-end">Crecimiento</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for d in datos %}
+            <tr>
+                <td><strong>{{ d.mes }}</strong></td>
+                <td class="text-end text-success">Bs {{ "%.0f"|format(d.ingresos) }}</td>
+                <td class="text-end text-danger">Bs {{ "%.0f"|format(d.gastos) }}</td>
+                <td class="text-end text-primary"><strong>Bs {{ "%.0f"|format(d.ganancia) }}</strong></td>
+                <td class="text-end">
+                    {% if d.crecimiento > 0 %}
+                    <span class="text-success">▲ {{ d.crecimiento }}%</span>
+                    {% elif d.crecimiento < 0 %}
+                    <span class="text-danger">▼ {{ d.crecimiento }}%</span>
+                    {% else %}
+                    <span class="text-muted">-</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<script>
+fetch('/api/estadisticas_mensuales')
+    .then(r => r.json())
+    .then(data => {
+        new Chart(document.getElementById('chartGanancias'), {
+            type: 'bar',
+            data: {
+                labels: data.labels,
+                datasets: [
+                    { label: 'Ingresos', data: data.ingresos, backgroundColor: 'rgba(25,135,84,0.6)' },
+                    { label: 'Gastos', data: data.gastos, backgroundColor: 'rgba(220,53,69,0.6)' },
+                    { label: 'Ganancia', data: data.ganancias, backgroundColor: 'rgba(13,110,253,0.6)' }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { position: 'bottom' } },
+                scales: { y: { beginAtZero: true } }
+            }
+        });
+    });
+</script>
+{% endblock %}

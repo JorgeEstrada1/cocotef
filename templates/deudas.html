@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Deudas</h2>
+
+<div class="row mb-4">
+    <div class="col-md-6 mb-3">
+        <div class="card text-bg-danger h-100">
+            <div class="card-body">
+                <h5 class="card-title">Vos debés</h5>
+                <p class="display-6">Bs {{ "%.0f"|format(saldo_yo) }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 mb-3">
+        <div class="card text-bg-warning h-100">
+            <div class="card-body">
+                <h5 class="card-title">Tu novia debe</h5>
+                <p class="display-6">Bs {{ "%.0f"|format(saldo_novia) }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <span></span>
+    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#deudaModal">+ Nueva deuda</button>
+</div>
+
+<div class="table-responsive">
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Fecha</th>
+                <th>Deudor</th>
+                <th>Acreedor</th>
+                <th>Motivo</th>
+                <th>Monto</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for d in deudas %}
+            <tr>
+                <td>{{ formatear_fecha(d.fecha) }}</td>
+                <td><strong>{{ d.deudor }}</strong></td>
+                <td>{{ d.acreedor }}</td>
+                <td>{{ d.motivo }}</td>
+                <td><strong>Bs {{ "%.0f"|format(d.monto) }}</strong></td>
+                <td>
+                    {% if d.estado == 'pendiente' %}
+                    <span class="badge bg-danger">Pendiente</span>
+                    {% else %}
+                    <span class="badge bg-success">Pagada {{ formatear_fecha(d.fecha_pago) }}</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if d.estado == 'pendiente' %}
+                    <form action="{{ url_for('deuda_pagar', id=d.id) }}" method="POST" class="d-inline">
+                        <button type="submit" class="btn btn-sm btn-success">✓ Pagar</button>
+                    </form>
+                    {% endif %}
+                    <form action="{{ url_for('deuda_eliminar', id=d.id) }}" method="POST" class="d-inline" onsubmit="return confirm('¿Eliminar?')">
+                        <button type="submit" class="btn btn-sm btn-outline-danger">🗑️</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="7" class="text-center text-muted">Sin deudas registradas</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="modal fade" id="deudaModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('deuda_nueva') }}">
+                <div class="modal-header">
+                    <h5 class="modal-title">Nueva deuda</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">¿Quién debe?</label>
+                        <select name="deudor" class="form-select" required>
+                            <option value="yo">Yo</option>
+                            <option value="novia">Mi novia</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">¿A quién le debe?</label>
+                        <select name="acreedor" class="form-select" required>
+                            <option value="novia">A mi novia</option>
+                            <option value="yo">A mí</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Monto Bs</label>
+                        <input type="number" name="monto" class="form-control" step="0.01" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Motivo</label>
+                        <input type="text" name="motivo" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Fecha</label>
+                        <input type="date" name="fecha" class="form-control" value="{{ hoy }}">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

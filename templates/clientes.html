@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Clientes</h2>
+
+<div class="table-responsive">
+    <table class="table table-striped table-hover">
+        <thead>
+            <tr>
+                <th>Cliente</th>
+                <th>Teléfono</th>
+                <th>Pedidos</th>
+                <th>Total gastado</th>
+                <th>Último pedido</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for c in clientes %}
+            <tr>
+                <td>
+                    <strong>{{ c.cliente_nombre }}</strong>
+                    {% if c.total >= 10 %} <span class="badge bg-warning text-dark">🥇 Fiel</span>
+                    {% elif c.total >= 5 %} <span class="badge bg-secondary">🥈 Habitual</span>
+                    {% elif c.total >= 3 %} <span class="badge bg-warning-subtle text-dark border">🥉 Recurrente</span>
+                    {% endif %}
+                </td>
+                <td>{{ c.cliente_telefono or '-' }}</td>
+                <td>{{ c.total }}</td>
+                <td>Bs {{ "%.0f"|format(c.gastado or 0) }}</td>
+                <td>{{ formatear_fecha(c.ultimo_pedido) }}</td>
+                <td><a href="{{ url_for('cliente_detalle', nombre=c.cliente_nombre) }}" class="btn btn-sm btn-outline-primary">Ver</a></td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="text-center text-muted">Sin clientes registrados</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

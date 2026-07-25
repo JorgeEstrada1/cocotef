@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>{% if filamento %}Editar filamento{% else %}Nuevo rollo{% endif %}</h2>
+
+<form method="POST" class="row g-3 mt-2">
+    <div class="col-md-4">
+        <label class="form-label">Tipo *</label>
+        <select name="tipo" class="form-select" required>
+            <option value="">Seleccionar...</option>
+            {% set tipos = ['PLA', 'PLA+', 'PETG', 'ABS', 'ASA', 'TPU', 'Resina'] %}
+            {% for t in tipos %}
+            <option value="{{ t }}" {% if filamento and filamento.tipo == t %}selected{% endif %}>{{ t }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-md-4">
+        <label class="form-label">Color</label>
+        <input type="text" name="color" class="form-control" value="{{ filamento.color if filamento else '' }}">
+    </div>
+    <div class="col-md-4">
+        <label class="form-label">Marca</label>
+        <input type="text" name="marca" class="form-control" value="{{ filamento.marca if filamento else '' }}">
+    </div>
+    <div class="col-md-3">
+        <label class="form-label">Peso total (g)</label>
+        <input type="number" name="peso_total" class="form-control" step="1" value="{{ filamento.peso_total if filamento else 1000 }}">
+    </div>
+    <div class="col-md-3">
+        <label class="form-label">Peso restante (g)</label>
+        <input type="number" name="peso_restante" class="form-control" step="1" value="{{ filamento.peso_restante if filamento else 1000 }}">
+    </div>
+    <div class="col-md-3">
+        <label class="form-label">Costo Bs</label>
+        <input type="number" name="costo" class="form-control" step="0.01" value="{{ filamento.costo if filamento else 0 }}">
+    </div>
+    <div class="col-md-3">
+        <label class="form-label">Alerta stock (g)</label>
+        <input type="number" name="stock_alerta" class="form-control" step="1" value="{{ filamento.stock_alerta if filamento else 200 }}">
+    </div>
+    <div class="col-md-4">
+        <label class="form-label">Fecha compra</label>
+        <input type="date" name="fecha_compra" class="form-control" value="{{ filamento.fecha_compra if filamento else hoy }}">
+    </div>
+    {% if filamento %}
+    <div class="col-md-4 d-flex align-items-end">
+        <div class="form-check">
+            <input type="checkbox" name="activo" class="form-check-input" id="activoCheck" {% if filamento.activo %}checked{% endif %}>
+            <label class="form-check-label" for="activoCheck">Activo</label>
+        </div>
+    </div>
+    {% endif %}
+    <div class="col-12">
+        <button type="submit" class="btn btn-primary">{% if filamento %}Actualizar{% else %}Agregar{% endif %}</button>
+        <a href="{{ url_for('filamento') }}" class="btn btn-secondary">Cancelar</a>
+    </div>
+</form>
+{% endblock %}

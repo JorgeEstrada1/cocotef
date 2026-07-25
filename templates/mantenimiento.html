@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>Mantenimiento de impresoras</h2>
+    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#mantoModal">+ Registrar</button>
+</div>
+<div class="table-responsive">
+    <table class="table table-striped table-hover">
+        <thead>
+            <tr><th>Fecha</th><th>Impresora</th><th>Tipo</th><th>Descripción</th><th>Próximo</th><th>Costo</th><th></th></tr>
+        </thead>
+        <tbody>
+            {% for r in registros %}
+            <tr>
+                <td>{{ formatear_fecha(r.fecha) }}</td>
+                <td>{{ r.impresora.nombre }}</td>
+                <td><span class="badge bg-secondary">{{ r.tipo }}</span></td>
+                <td>{{ r.descripcion }}</td>
+                <td>{% if r.fecha_proximo %}{{ formatear_fecha(r.fecha_proximo) }}{% else %}-{% endif %}</td>
+                <td>{% if r.costo > 0 %}Bs {{ "%.0f"|format(r.costo) }}{% else %}-{% endif %}</td>
+                <td>
+                    <form action="{{ url_for('mantenimiento_eliminar', id=r.id) }}" method="POST" class="d-inline" onsubmit="return confirm('¿Eliminar?')">
+                        <button type="submit" class="btn btn-sm btn-outline-danger">🗑️</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="7" class="text-center text-muted">Sin registros</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="modal fade" id="mantoModal">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('mantenimiento_nuevo') }}">
+                <div class="modal-header"><h5>Nuevo mantenimiento</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Impresora</label>
+                        <select name="impresora_id" class="form-select" required>
+                            {% for i in impresoras %}
+                            <option value="{{ i.id }}">{{ i.nombre }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Tipo</label>
+                        <select name="tipo" class="form-select" required>
+                            <option value="nozzle">Cambio de nozzle</option>
+                            <option value="lubricacion">Lubricación</option>
+                            <option value="correas">Ajuste de correas</option>
+                            <option value="cama">Nivelación de cama</option>
+                            <option value="electronica">Electrónica</option>
+                            <option value="otro">Otro</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Descripción</label>
+                        <textarea name="descripcion" class="form-control" rows="2"></textarea>
+                    </div>
+                    <div class="row">
+                        <div class="col-6">
+                            <label class="form-label">Fecha</label>
+                            <input type="date" name="fecha" class="form-control" value="{{ hoy }}">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Próximo mantenimiento</label>
+                            <input type="date" name="fecha_proximo" class="form-control">
+                        </div>
+                    </div>
+                    <div class="mb-3 mt-3">
+                        <label class="form-label">Costo Bs</label>
+                        <input type="number" name="costo" class="form-control" step="0.01" value="0">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

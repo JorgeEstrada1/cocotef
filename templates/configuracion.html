@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Configuracion</h2>
+<ul class="nav nav-tabs mb-3" id="configTabs">
+    <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#general">General</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#google">Google Login</a></li>
+    <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#email">Email (SMTP)</a></li>
+</ul>
+<form method="POST" enctype="multipart/form-data">
+    <div class="tab-content">
+        <div class="tab-pane fade show active" id="general">
+            <div class="mb-3">
+                <label class="form-label">Nombre del negocio</label>
+                <input type="text" name="nombre_negocio" class="form-control" value="{{ conf.nombre_negocio }}" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Logo</label>
+                <input type="file" name="logo" class="form-control" accept="image/*">
+                {% if conf.logo %}
+                <small>Actual: <img src="{{ url_for('uploaded_file', filename=conf.logo) }}" style="height: 30px; vertical-align: middle;"></small>
+                {% endif %}
+            </div>
+        </div>
+        <div class="tab-pane fade" id="google">
+            <p class="text-muted">Crea un proyecto en <a href="https://console.cloud.google.com/apis/credentials" target="_blank">Google Cloud Console</a>, agrega una credencial OAuth 2.0 con URI de redireccion: <code>{{ url_for('google_callback', _external=True) }}</code></p>
+            <div class="mb-3">
+                <label class="form-label">Google Client ID</label>
+                <input type="text" name="google_client_id" class="form-control" value="{{ conf.google_client_id or '' }}">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Google Client Secret</label>
+                <input type="password" name="google_client_secret" class="form-control" value="{{ conf.google_client_secret or '' }}">
+            </div>
+        </div>
+        <div class="tab-pane fade" id="email">
+            <p class="text-muted">Usa Gmail con contrasena de aplicacion. <a href="https://support.google.com/accounts/answer/185833" target="_blank">Como generar una</a></p>
+            <div class="mb-3">
+                <label class="form-label">Servidor SMTP</label>
+                <input type="text" name="smtp_server" class="form-control" value="{{ conf.smtp_server or 'smtp.gmail.com' }}">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Puerto SMTP</label>
+                <input type="number" name="smtp_port" class="form-control" value="{{ conf.smtp_port or 587 }}">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Usuario (email)</label>
+                <input type="email" name="smtp_user" class="form-control" value="{{ conf.smtp_user or '' }}">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Contrasena</label>
+                <input type="password" name="smtp_pass" class="form-control" value="{{ conf.smtp_pass or '' }}">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Email desde (From)</label>
+                <input type="email" name="smtp_from" class="form-control" value="{{ conf.smtp_from or '' }}">
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Notificar a (destinatario)</label>
+                <input type="email" name="notify_email" class="form-control" value="{{ conf.notify_email or '' }}">
+            </div>
+        </div>
+    </div>
+    <button type="submit" class="btn btn-primary">Guardar</button>
+    <a href="{{ url_for('index') }}" class="btn btn-secondary">Cancelar</a>
+</form>
+{% endblock %}

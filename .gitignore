@@ -1,0 +1,27 @@
+# Binarios grandes / túneles
+cloudflared.exe
+ngrok.exe
+ngrok/
+
+# Base de datos e instancia
+*.db
+instance/
+
+# Archivos subidos por usuarios
+uploads/*
+!uploads/.gitkeep
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.venv/
+env/
+
+# Entorno
+.env
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

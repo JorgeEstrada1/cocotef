@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>Pedidos</h2>
+    <a href="{{ url_for('pedido_nuevo') }}" class="btn btn-primary">+ Nuevo pedido</a>
+</div>
+
+<form method="GET" class="row g-2 mb-3">
+    <div class="col-md-4">
+        <input type="text" name="busqueda" class="form-control" placeholder="Buscar cliente o modelo..." value="{{ busqueda }}">
+    </div>
+    <div class="col-md-3">
+        <select name="estado" class="form-select">
+            <option value="">Todos los estados</option>
+            <option value="pendiente" {% if estado == 'pendiente' %}selected{% endif %}>Pendiente</option>
+            <option value="en_impresion" {% if estado == 'en_impresion' %}selected{% endif %}>En impresión</option>
+            <option value="terminado" {% if estado == 'terminado' %}selected{% endif %}>Terminado</option>
+            <option value="entregado" {% if estado == 'entregado' %}selected{% endif %}>Entregado</option>
+        </select>
+    </div>
+    <div class="col-md-2">
+        <button type="submit" class="btn btn-outline-secondary w-100">Filtrar</button>
+    </div>
+    <div class="col-md-3 text-end">
+        <a href="{{ url_for('exportar_pedidos_csv') }}" class="btn btn-outline-success">📥 CSV</a>
+    </div>
+</form>
+
+<div class="table-responsive">
+    <table class="table table-striped table-hover">
+        <thead>
+            <tr>
+                <th>Foto</th>
+                <th>Cliente</th>
+                <th>Teléfono</th>
+                <th>Modelo</th>
+                <th>Material</th>
+                <th>Cant</th>
+                <th>Precio</th>
+                <th>Entrega</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in pedidos %}
+            <tr class="{% if p.fecha_entrega and p.fecha_entrega < hoy and p.estado != 'entregado' %}table-danger{% endif %}">
+                <td>
+                    {% if p.foto %}
+                    <a href="{{ url_for('uploaded_file', filename=p.foto) }}" target="_blank">
+                        <img src="{{ url_for('uploaded_file', filename=p.foto) }}" style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px;">
+                    </a>
+                    {% endif %}
+                    {% if p.archivo_stl %}
+                    <a href="{{ url_for('uploaded_file', filename=p.archivo_stl) }}" target="_blank" class="ms-1" title="Descargar STL">📦</a>
+                    {% endif %}
+                </td>
+                <td>
+                    {{ p.cliente_nombre }}
+                    {% if p.es_recurrente %}<span class="badge bg-info">🔄</span>{% endif %}
+                </td>
+                <td>{{ p.cliente_telefono }}</td>
+                <td>{{ p.modelo }}</td>
+                <td>{{ p.material }} {{ p.color }}</td>
+                <td>{{ p.cantidad }}</td>
+                <td>Bs {{ "%.0f"|format(p.precio_total) }}</td>
+                <td>{{ formatear_fecha(p.fecha_entrega) }}</td>
+                <td>
+                    {# Indicador visual del estado de impresión #}
+                    {% set _ind = {
+                        'pendiente':   ('secondary', '⏳ En cola'),
+                        'en_impresion':('info',      '🖨️ Imprimiendo'),
+                        'terminado':   ('success',   '✅ Listo'),
+                        'entregado':   ('dark',      '📦 Entregado')
+                    } %}
+                    {% set _c, _t = _ind.get(p.estado, ('secondary', p.estado)) %}
+                    <span class="badge text-bg-{{ _c }} d-block mb-1 {% if p.estado == 'en_impresion' %}print-pulse{% endif %}">
+                        {{ _t }}{% if p.horas_impresion and p.estado in ['pendiente','en_impresion'] %} · {{ "%.1f"|format(p.horas_impresion) }}h{% endif %}
+                    </span>
+                    <form action="{{ url_for('pedido_estado', id=p.id) }}" method="POST" class="d-inline">
+                        <select name="estado" class="form-select form-select-sm" onchange="this.form.submit()" style="width: auto;">
+                            <option value="pendiente" {% if p.estado == 'pendiente' %}selected{% endif %}>Pendiente</option>
+                            <option value="en_impresion" {% if p.estado == 'en_impresion' %}selected{% endif %}>Imprimiendo</option>
+                            <option value="terminado" {% if p.estado == 'terminado' %}selected{% endif %}>Terminado</option>
+                            <option value="entregado" {% if p.estado == 'entregado' %}selected{% endif %}>Entregado</option>
+                        </select>
+                    </form>
+                </td>
+                <td>
+                    <a href="{{ url_for('pedido_editar', id=p.id) }}" class="btn btn-sm btn-outline-primary" title="Editar">✏️</a>
+                    {% if p.cliente_telefono %}
+                    <a href="https://wa.me/54{{ p.cliente_telefono|replace(' ','')|replace('-','')|replace('(','')|replace(')','') }}?text=Hola {{ p.cliente_nombre }}!%20Te%20escribo%20por%20tu%20pedido%20de%20{{ p.modelo|replace(' ','%20') }}" target="_blank" class="btn btn-sm btn-outline-success" title="WhatsApp">💬</a>
+                    {% endif %}
+                    {% if p.estado in ['terminado', 'entregado'] %}
+                    <label class="btn btn-sm btn-outline-warning mb-0" title="Foto del resultado (cámara)">
+                        📷
+                        <input type="file" accept="image/*" capture="environment" class="d-none cam-input" data-pedido="{{ p.id }}">
+                    </label>
+                    {% endif %}
+                    <a href="{{ url_for('pedido_presupuesto', id=p.id) }}" class="btn btn-sm btn-outline-secondary" title="Ver presupuesto" target="_blank">📄</a>
+                    <a href="{{ url_for('pedido_presupuesto_pdf', id=p.id) }}" class="btn btn-sm btn-outline-danger" title="Descargar PDF" target="_blank">📎</a>
+                    <form action="{{ url_for('pedido_duplicar', id=p.id) }}" method="POST" class="d-inline">
+                        <button type="submit" class="btn btn-sm btn-outline-info" title="Duplicar pedido">📋</button>
+                    </form>
+                    <form action="{{ url_for('pedido_eliminar', id=p.id) }}" method="POST" class="d-inline" onsubmit="return confirm('¿Eliminar pedido?')">
+                        <button type="submit" class="btn btn-sm btn-outline-danger">🗑️</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="10" class="text-center text-muted">No hay pedidos</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<style>
+@keyframes printpulse { 0%,100% { opacity: 1; } 50% { opacity: .5; } }
+.print-pulse { animation: printpulse 1.2s ease-in-out infinite; }
+</style>
+
+<script>
+// Captura rápida de entregas: sube la foto directo desde la cámara del celular
+document.querySelectorAll('.cam-input').forEach(inp => {
+    inp.addEventListener('change', async function () {
+        const file = this.files[0];
+        if (!file) return;
+        const id = this.dataset.pedido;
+        const label = this.closest('label');
+        const original = label.textContent.trim();
+        label.textContent = '⏳';
+        const fd = new FormData();
+        fd.append('foto', file);
+        try {
+            const res = await fetch(`/api/v1/pedidos/${id}/foto`, { method: 'POST', body: fd, credentials: 'same-origin' });
+            const data = await res.json();
+            if (data.ok) {
+                label.textContent = '✅';
+                if (typeof showToast === 'function') showToast('📷 Foto subida correctamente');
+                setTimeout(() => location.reload(), 900);
+            } else {
+                label.textContent = '📷';
+                if (typeof showToast === 'function') showToast('⚠️ ' + (data.error || 'Error al subir'));
+            }
+        } catch (e) {
+            label.textContent = '📷';
+            if (typeof showToast === 'function') showToast('⚠️ Error de red al subir la foto');
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>Impresoras</h2>
+    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#impresoraModal">+ Agregar</button>
+</div>
+
+<div class="row">
+    {% for i in impresoras %}
+    <div class="col-md-3 mb-3">
+        <div class="card {% if not i.activa %}text-bg-secondary{% else %}text-bg-dark{% endif %} h-100">
+            <div class="card-body">
+                <h5 class="card-title">{{ i.nombre }}</h5>
+                <p class="card-text">
+                    <strong>{{ "%.0f"|format(i.horas_diarias) }}h/día</strong><br>
+                    {% if i.activa %}<span class="text-success">● Activa</span>{% else %}<span class="text-muted">● Inactiva</span>{% endif %}
+                </p>
+                <button type="button" class="btn btn-sm btn-outline-light" data-bs-toggle="modal" data-bs-target="#editarModal{{ i.id }}">Editar</button>
+                <form action="{{ url_for('impresora_eliminar', id=i.id) }}" method="POST" class="d-inline" onsubmit="return confirm('¿Eliminar {{ i.nombre }}?')">
+                    <button type="submit" class="btn btn-sm btn-outline-danger">🗑️</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="editarModal{{ i.id }}" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form method="POST" action="{{ url_for('impresora_editar', id=i.id) }}">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Editar {{ i.nombre }}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Nombre</label>
+                            <input type="text" name="nombre" class="form-control" value="{{ i.nombre }}" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Horas disponibles por día</label>
+                            <input type="number" name="horas_diarias" class="form-control" step="1" value="{{ i.horas_diarias }}">
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" name="activa" class="form-check-input" id="activa{{ i.id }}" {% if i.activa %}checked{% endif %}>
+                            <label class="form-check-label" for="activa{{ i.id }}">Activa</label>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Guardar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="col-12 text-center text-muted">No hay impresoras registradas</div>
+    {% endfor %}
+</div>
+
+<div class="modal fade" id="impresoraModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('impresora_nueva') }}">
+                <div class="modal-header">
+                    <h5 class="modal-title">Nueva impresora</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Nombre</label>
+                        <input type="text" name="nombre" class="form-control" placeholder="Ej: Creality Ender 3" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Horas disponibles por día</label>
+                        <input type="number" name="horas_diarias" class="form-control" step="1" value="24">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Agregar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

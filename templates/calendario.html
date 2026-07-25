@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Calendario de ocupación</h2>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <a href="{{ url_for('calendario', semana=semana_offset - 1) }}" class="btn btn-outline-secondary">← Semana anterior</a>
+    <span class="fw-bold">{{ formatear_fecha(dias[0]) }} - {{ formatear_fecha(dias[6]) }}</span>
+    <a href="{{ url_for('calendario', semana=semana_offset + 1) }}" class="btn btn-outline-secondary">Semana siguiente →</a>
+</div>
+
+<div class="table-responsive">
+    <table class="table table-bordered">
+        <thead>
+            <tr>
+                <th style="width: 120px;"></th>
+                {% for dia in dias %}
+                <th class="text-center {% if dia == hoy %}table-primary{% endif %}">
+                    {{ dia.strftime('%A') }}<br>
+                    <small>{{ formatear_fecha(dia) }}</small>
+                </th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for imp in impresoras %}
+            <tr>
+                <td><strong>{{ imp.nombre }}</strong></td>
+                {% for dia in dias %}
+                {% set horas = ocupacion.get(dia, {}).get(imp.id, 0) %}
+                <td class="text-center align-middle {% if dia == hoy %}table-primary{% endif %}"
+                    style="background-color: {% if horas > 0 %}rgba(255,193,7,{{ (horas / imp.horas_diarias)|round(1) }}){% endif %}">
+                    {% if horas > 0 %}
+                    <strong>{{ "%.1f"|format(horas) }}h</strong>
+                    {% else %}
+                    <span class="text-muted">-</span>
+                    {% endif %}
+                </td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="row mt-4">
+    {% for dia in dias %}
+    {% set pedidos_dia = entregas.get(dia, []) %}
+    {% if pedidos_dia %}
+    <div class="col-md-4 mb-3">
+        <div class="card {% if dia == hoy %}border-primary{% endif %}">
+            <div class="card-header">
+                <strong>{{ formatear_fecha(dia) }}</strong>
+                {% if dia == hoy %}<span class="badge bg-primary">Hoy</span>{% endif %}
+            </div>
+            <ul class="list-group list-group-flush">
+                {% for p in pedidos_dia %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    {{ p.cliente_nombre }} - {{ p.modelo }}
+                    <span class="badge bg-{% if p.estado == 'pendiente' %}warning{% elif p.estado == 'en_impresion' %}primary{% else %}info{% endif %}">
+                        {{ p.estado }}
+                    </span>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+    {% endif %}
+    {% endfor %}
+</div>
+{% endblock %}

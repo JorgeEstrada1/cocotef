@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h2>Cliente: {{ cliente }}</h2>
+        {% if cantidad >= 10 %} <span class="badge bg-warning text-dark fs-6">🥇 Cliente Fiel - {{ cantidad }} pedidos</span>
+        {% elif cantidad >= 5 %} <span class="badge bg-secondary fs-6">🥈 Cliente Habitual - {{ cantidad }} pedidos</span>
+        {% elif cantidad >= 3 %} <span class="badge bg-warning-subtle text-dark border fs-6">🥉 Cliente Recurrente - {{ cantidad }} pedidos</span>
+        {% else %} <span class="badge bg-light text-dark fs-6">{{ cantidad }} pedidos</span>
+        {% endif %}
+    </div>
+    <span class="fs-5">Total gastado: <strong>Bs {{ "%.0f"|format(total) }}</strong></span>
+</div>
+
+<div class="table-responsive">
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Fecha</th>
+                <th>Modelo</th>
+                <th>Material</th>
+                <th>Precio</th>
+                <th>Entrega</th>
+                <th>Estado</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in pedidos %}
+            <tr>
+                <td>{{ formatear_fecha(p.fecha_pedido) }}</td>
+                <td>{{ p.modelo }}</td>
+                <td>{{ p.material }} {{ p.color }}</td>
+                <td>Bs {{ "%.0f"|format(p.precio_total) }}</td>
+                <td>{{ formatear_fecha(p.fecha_entrega) }}</td>
+                <td>
+                    <span class="badge {% if p.estado == 'pendiente' %}bg-warning{% elif p.estado == 'en_impresion' %}bg-primary{% elif p.estado == 'terminado' %}bg-info{% else %}bg-success{% endif %}">
+                        {{ p.estado }}
+                    </span>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="text-center text-muted">Sin pedidos</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+<a href="{{ url_for('pedidos', cliente=cliente) }}" class="btn btn-outline-primary">Ver en pedidos</a>
+<a href="{{ url_for('clientes') }}" class="btn btn-secondary">Volver</a>
+{% endblock %}

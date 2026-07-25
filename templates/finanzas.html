@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>Finanzas</h2>
+    <a href="{{ url_for('exportar_finanzas_csv') }}" class="btn btn-outline-success btn-sm">📥 Exportar CSV</a>
+</div>
+
+<div class="row mb-3">
+    <div class="col-md-3">
+        <form method="GET" class="row g-2">
+            <div class="col">
+                <select name="mes" class="form-select">
+                    {% for num, nombre in meses %}
+                    <option value="{{ num }}" {% if mes == num %}selected{% endif %}>{{ nombre }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col">
+                <select name="anio" class="form-select">
+                    {% for a in anios %}
+                    <option value="{{ a }}" {% if anio == a %}selected{% endif %}>{{ a }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-outline-secondary">Ver</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-3 mb-3">
+        <div class="card text-bg-success h-100">
+            <div class="card-body">
+                <h6>Ingresos</h6>
+                <p class="display-6">Bs {{ "%.0f"|format(ingresos) }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card text-bg-danger h-100">
+            <div class="card-body">
+                <h6>Gastos</h6>
+                <p class="display-6">-Bs {{ "%.0f"|format(gastos) }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card text-bg-primary h-100">
+            <div class="card-body">
+                <h6>Ganancia neta</h6>
+                <p class="display-6">Bs {{ "%.0f"|format(ganancia) }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card text-bg-info h-100">
+            <div class="card-body">
+                <h6>División 50/50</h6>
+                <p>Vos: <strong>Bs {{ "%.0f"|format(ganancia_yo) }}</strong></p>
+                <p>Novia: <strong>Bs {{ "%.0f"|format(ganancia_novia) }}</strong></p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Evolución últimos 6 meses</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="chartFinanzas" height="100"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Gastos del mes</span>
+                <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#gastoModal">+ Agregar gasto</button>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-striped mb-0">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Descripción</th>
+                            <th>Categoría</th>
+                            <th>Pagó</th>
+                            <th>Monto</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for g in gastos_lista %}
+                        <tr>
+                            <td>{{ formatear_fecha(g.fecha) }}</td>
+                            <td>{{ g.descripcion }}</td>
+                            <td>{{ g.categoria }}</td>
+                            <td>{{ g.pagado_por }}</td>
+                            <td><strong>Bs {{ "%.0f"|format(g.monto) }}</strong></td>
+                            <td>
+                                <form action="{{ url_for('gasto_eliminar', id=g.id) }}" method="POST" class="d-inline" onsubmit="return confirm('¿Eliminar?')">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">🗑️</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="6" class="text-center text-muted">Sin gastos este mes</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="gastoModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" action="{{ url_for('gasto_nuevo') }}">
+                <div class="modal-header">
+                    <h5 class="modal-title">Nuevo gasto</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="mes" value="{{ mes }}">
+                    <input type="hidden" name="anio" value="{{ anio }}">
+                    <div class="mb-3">
+                        <label class="form-label">Descripción</label>
+                        <input type="text" name="descripcion" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Monto Bs</label>
+                        <input type="number" name="monto" class="form-control" step="0.01" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Categoría</label>
+                        <select name="categoria" class="form-select">
+                            <option value="filamento">Filamento</option>
+                            <option value="insumos">Insumos</option>
+                            <option value="envio">Envío</option>
+                            <option value="mantenimiento">Mantenimiento</option>
+                            <option value="otros">Otros</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Pagado por</label>
+                        <select name="pagado_por" class="form-select">
+                            <option value="yo">Yo</option>
+                            <option value="novia">Novia</option>
+                            <option value="ambos" selected>Ambos</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Fecha</label>
+                        <input type="date" name="fecha" class="form-control" value="{{ hoy }}">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+fetch('/api/estadisticas')
+    .then(r => r.json())
+    .then(data => {
+        new Chart(document.getElementById('chartFinanzas'), {
+            type: 'bar',
+            data: {
+                labels: data.labels,
+                datasets: [
+                    { label: 'Ingresos', data: data.ingresos, backgroundColor: 'rgba(40,167,69,0.6)' },
+                    { label: 'Gastos', data: data.gastos, backgroundColor: 'rgba(220,53,69,0.6)' }
+                ]
+            },
+            options: {
+                responsive: true,
+                scales: { y: { beginAtZero: true } }
+            }
+        });
+    });
+</script>
+{% endblock %}

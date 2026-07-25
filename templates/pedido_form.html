@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>{% if pedido %}Editar pedido{% else %}Nuevo pedido{% endif %}</h2>
+
+<form method="POST" class="row g-3 mt-2" enctype="multipart/form-data">
+    <div class="col-md-6">
+        <label class="form-label">Cliente *</label>
+        <input type="text" name="cliente_nombre" class="form-control" required value="{{ pedido.cliente_nombre if pedido else '' }}">
+    </div>
+    <div class="col-md-6">
+        <label class="form-label">Teléfono</label>
+        <input type="text" name="cliente_telefono" class="form-control" value="{{ pedido.cliente_telefono if pedido else '' }}">
+    </div>
+    <div class="col-md-8">
+        <label class="form-label">Modelo *</label>
+        <input type="text" name="modelo" class="form-control" required value="{{ pedido.modelo if pedido else '' }}">
+    </div>
+    <div class="col-md-4">
+        <label class="form-label">Cantidad</label>
+        <input type="number" name="cantidad" class="form-control" value="{{ pedido.cantidad if pedido else 1 }}" min="1">
+    </div>
+    <div class="col-md-4">
+        <label class="form-label">Material</label>
+        <select name="material" class="form-select">
+            <option value="">Seleccionar...</option>
+            {% for m in ['PLA', 'PLA+', 'PETG', 'ABS', 'TPU', 'Resina', 'Otro'] %}
+            <option value="{{ m }}" {% if pedido and pedido.material == m %}selected{% endif %}>{{ m }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-md-4">
+        <label class="form-label">Color</label>
+        <input type="text" name="color" class="form-control" value="{{ pedido.color if pedido else '' }}">
+    </div>
+    <div class="col-md-4">
+        <label class="form-label">Filamento</label>
+        <select name="filamento_id" class="form-select">
+            <option value="">Sin filamento específico</option>
+            {% for f in filamentos %}
+            <option value="{{ f.id }}" {% if pedido and pedido.material == f.tipo and pedido.color == f.color %}selected{% endif %}>
+                {{ f.tipo }} - {{ f.color }} ({{ "%.0f"|format(f.peso_restante) }}g)
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-md-3">
+        <label class="form-label">Gramos totales</label>
+        <input type="number" name="gramos_totales" class="form-control" step="0.1" value="{{ pedido.gramos_totales if pedido else 0 }}">
+    </div>
+    <div class="col-md-3">
+        <label class="form-label">Precio total Bs</label>
+        <input type="number" name="precio_total" class="form-control" step="0.01" value="{{ pedido.precio_total if pedido else 0 }}">
+    </div>
+    <div class="col-md-3">
+        <label class="form-label">Horas impresión</label>
+        <input type="number" name="horas_impresion" class="form-control" step="0.5" value="{{ pedido.horas_impresion if pedido else 0 }}">
+    </div>
+    <div class="col-md-3">
+        <label class="form-label">Impresora</label>
+        <select name="impresora_id" class="form-select">
+            <option value="">Sin asignar</option>
+            {% for i in impresoras %}
+            <option value="{{ i.id }}" {% if pedido and pedido.impresora_id == i.id %}selected{% endif %}>{{ i.nombre }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-md-4">
+        <label class="form-label">Fecha de entrega</label>
+        <input type="date" name="fecha_entrega" class="form-control" value="{{ pedido.fecha_entrega if pedido else '' }}">
+    </div>
+    <div class="col-md-4">
+        <label class="form-label">Foto del modelo</label>
+        <input type="file" name="foto" class="form-control" accept="image/*">
+        {% if pedido and pedido.foto %}
+        <small>Actual: <a href="{{ url_for('uploaded_file', filename=pedido.foto) }}" target="_blank">ver foto</a></small>
+        {% endif %}
+    </div>
+    <div class="col-md-4">
+        <label class="form-label">Archivo STL</label>
+        <input type="file" name="archivo_stl" class="form-control" accept=".stl">
+        {% if pedido and pedido.archivo_stl %}
+        <small>Actual: <a href="{{ url_for('uploaded_file', filename=pedido.archivo_stl) }}" target="_blank">📦 descargar STL</a></small>
+        {% endif %}
+    </div>
+    <div class="col-md-4 d-flex align-items-end">
+        <div class="form-check">
+            <input type="checkbox" name="es_recurrente" class="form-check-input" id="recurrenteCheck" {% if pedido and pedido.es_recurrente %}checked{% endif %}>
+            <label class="form-check-label" for="recurrenteCheck">🔄 Cliente recurrente</label>
+        </div>
+    </div>
+    <div class="col-md-8">
+        <label class="form-label">Notas</label>
+        <input type="text" name="notas" class="form-control" value="{{ pedido.notas if pedido else '' }}">
+    </div>
+    <div class="col-12">
+        <button type="button" class="btn btn-outline-info" data-bs-toggle="modal" data-bs-target="#calcModal">🧮 Calculadora de precio</button>
+        <button type="submit" class="btn btn-primary">{% if pedido %}Actualizar{% else %}Crear pedido{% endif %}</button>
+        <a href="{{ url_for('pedidos') }}" class="btn btn-secondary">Cancelar</a>
+    </div>
+</form>
+
+<div class="modal fade" id="calcModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header"><h5>🧮 Calculadora de precio</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <div class="mb-2"><label class="form-label">Gramos de filamento</label><input type="number" id="calcGramos" class="form-control" value="0" step="1"></div>
+                <div class="mb-2"><label class="form-label">Costo del rollo (Bs)
+                        </label><input type="number" id="calcCostoRollo" class="form-control" value="0" step="0.01"></div>
+                <div class="mb-2"><label class="form-label">Peso del rollo (g)</label><input type="number" id="calcPesoRollo" class="form-control" value="1000" step="1"></div>
+                <div class="mb-2"><label class="form-label">Horas de impresión</label><input type="number" id="calcHoras" class="form-control" value="0" step="0.5"></div>
+                <div class="mb-2"><label class="form-label">Precio por hora (Bs)
+                                </label><input type="number" id="calcHora" class="form-control" value="100" step="1"></div>
+                <div class="mb-2"><label class="form-label">Margen de ganancia (%)</label><input type="number" id="calcMargen" class="form-control" value="30" step="1"></div>
+                <hr>
+                <div class="row text-center">
+                    <div class="col-4"><strong>Costo mat.</strong><br><span id="calcCostoMat" class="fs-5">Bs 0</span></div>
+                    <div class="col-4"><strong>Mano obra</strong><br><span id="calcManoObra" class="fs-5">Bs 0</span></div>
+                    <div class="col-4"><strong>PRECIO SUG.</strong><br><span id="calcResultado" class="fs-4 fw-bold text-success">Bs 0</span></div>
+                </div>
+                <button type="button" class="btn btn-success mt-3 w-100" onclick="usarCalculadora()">Usar este precio</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.querySelectorAll('#calcGramos, #calcCostoRollo, #calcPesoRollo, #calcHoras, #calcHora, #calcMargen').forEach(el => {
+    el.addEventListener('input', calcPrecio);
+});
+function calcPrecio() {
+    const g = parseFloat(document.getElementById('calcGramos').value) || 0;
+    const c = parseFloat(document.getElementById('calcCostoRollo').value) || 0;
+    const p = parseFloat(document.getElementById('calcPesoRollo').value) || 1000;
+    const h = parseFloat(document.getElementById('calcHoras').value) || 0;
+    const ph = parseFloat(document.getElementById('calcHora').value) || 0;
+    const m = parseFloat(document.getElementById('calcMargen').value) || 0;
+    const costoMat = p > 0 ? (g / p) * c : 0;
+    const manoObra = h * ph;
+    const total = (costoMat + manoObra) * (1 + m / 100);
+    document.getElementById('calcCostoMat').textContent = 'Bs ' + costoMat.toFixed(0);
+    document.getElementById('calcManoObra').textContent = 'Bs ' + manoObra.toFixed(0);
+    document.getElementById('calcResultado').textContent = 'Bs ' + total.toFixed(0);
+}
+function usarCalculadora() {
+    const total = document.getElementById('calcResultado').textContent.replace('Bs ', '');
+    document.querySelector('input[name="precio_total"]').value = total;
+    const g = document.getElementById('calcGramos').value;
+    if (g > 0) document.querySelector('input[name="gramos_totales"]').value = g;
+    const h = document.getElementById('calcHoras').value;
+    if (h > 0) document.querySelector('input[name="horas_impresion"]').value = h;
+    bootstrap.Modal.getInstance(document.getElementById('calcModal')).hide();
+}
+</script>
+{% endblock %}

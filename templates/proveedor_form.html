@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>{% if proveedor %}Editar proveedor{% else %}Nuevo proveedor{% endif %}</h2>
+<form method="POST" class="row g-3 mt-2">
+    <div class="col-md-6">
+        <label class="form-label">Nombre *</label>
+        <input type="text" name="nombre" class="form-control" required value="{{ proveedor.nombre if proveedor else '' }}">
+    </div>
+    <div class="col-md-6">
+        <label class="form-label">Contacto</label>
+        <input type="text" name="contacto" class="form-control" value="{{ proveedor.contacto if proveedor else '' }}">
+    </div>
+    <div class="col-md-4">
+        <label class="form-label">Teléfono</label>
+        <input type="text" name="telefono" class="form-control" value="{{ proveedor.telefono if proveedor else '' }}">
+    </div>
+    <div class="col-md-4">
+        <label class="form-label">Email</label>
+        <input type="email" name="email" class="form-control" value="{{ proveedor.email if proveedor else '' }}">
+    </div>
+    <div class="col-md-4">
+        <label class="form-label">Dirección</label>
+        <input type="text" name="direccion" class="form-control" value="{{ proveedor.direccion if proveedor else '' }}">
+    </div>
+    <div class="col-12">
+        <label class="form-label">Notas</label>
+        <textarea name="notas" class="form-control" rows="3">{{ proveedor.notas if proveedor else '' }}</textarea>
+    </div>
+    <div class="col-12">
+        <button type="submit" class="btn btn-primary">{% if proveedor %}Actualizar{% else %}Agregar{% endif %}</button>
+        <a href="{{ url_for('proveedores') }}" class="btn btn-secondary">Cancelar</a>
+    </div>
+</form>
+{% endblock %}

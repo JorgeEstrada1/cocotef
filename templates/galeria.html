@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Galería de trabajos</h2>
+{% if pedidos %}
+<div class="row g-3">
+    {% for p in pedidos %}
+    <div class="col-md-3 col-6">
+        <div class="card h-100">
+            <a href="{{ url_for('uploaded_file', filename=p.foto) }}" target="_blank">
+                <img src="{{ url_for('uploaded_file', filename=p.foto) }}" class="card-img-top" style="height: 200px; object-fit: cover;">
+            </a>
+            <div class="card-body p-2">
+                <small>
+                    <strong>{{ p.cliente_nombre }}</strong><br>
+                    {{ p.modelo }}<br>
+                    <span class="text-muted">{{ formatear_fecha(p.fecha_entrega) }}</span>
+                    <span class="badge {% if p.estado == 'pendiente' %}bg-warning{% elif p.estado == 'en_impresion' %}bg-primary{% elif p.estado == 'terminado' %}bg-info{% else %}bg-success{% endif %}">{{ p.estado }}</span>
+                </small>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<p class="text-muted">No hay fotos subidas aún. Subí fotos al crear o editar un pedido.</p>
+{% endif %}
+{% endblock %}
