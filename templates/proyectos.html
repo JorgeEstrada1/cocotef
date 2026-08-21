@@ -57,8 +57,13 @@
       <option value="">— Filamento —</option>
       {% for f in filamentos %}<option value="{{ f.id }}">{{ f.etiqueta }}</option>{% endfor %}
     </select>
+    <input name="telefono" placeholder="WhatsApp del cliente (ej. 591…)" class="{{ inp }}">
     <input name="precio_total" type="number" step="0.01" min="0" placeholder="Precio total (Bs.)" class="{{ inp }}">
     <input name="adelanto" type="number" step="0.01" min="0" placeholder="Adelanto cobrado (Bs.)" class="{{ inp }}">
+    <select name="cobrador_id" class="{{ inp }}">
+      <option value="">¿Quién cobra? (elegir, no se asume)</option>
+      {% for u in usuarios %}<option value="{{ u.id }}">{{ u.nombre }}</option>{% endfor %}
+    </select>
     <label class="text-xs text-slate-500 flex flex-col gap-1">Fecha de entrega
       <input name="fecha_entrega" type="date" class="{{ inp }}">
     </label>
@@ -67,11 +72,42 @@
     </button>
   </form>
   <p class="text-xs text-slate-500 mt-2">
-    Se registrará automáticamente a <b class="text-teal-300">{{ current_user.nombre }}</b> como responsable.
+    Quedas registrado como <b class="text-teal-300">{{ current_user.nombre }}</b> (quien creó el pedido);
+    <b class="text-teal-300">quién cobra</b> se elige aparte y no se asume.
     El ingreso solo se cuenta cuando el pedido esté <b class="text-teal-300">Entregado</b> o el saldo sea <b class="text-teal-300">Bs. 0</b>.
     {% if not filamentos %} · Agrega filamentos primero para calcular el costo automático.{% endif %}
   </p>
 </div>
+
+{# ---- Deuda interna entre socios ---- #}
+{% if deuda %}
+<div class="bg-fuchsia-500/5 border border-fuchsia-500/30 rounded-xl p-4 mb-6">
+  <h2 class="font-semibold text-fuchsia-300 mb-1">💸 Deuda entre socios (pedidos cobrados sin saldar)</h2>
+  {% for d in deuda %}
+  <p class="text-sm text-slate-300"><b>{{ d.nombre }}</b> le debe al otro socio
+    <b class="text-fuchsia-300">{{ d.monto | money }}</b>
+    <span class="text-slate-500">({{ d.count }} pedido{{ 's' if d.count != 1 }})</span></p>
+  {% endfor %}
+</div>
+{% endif %}
+
+{# ---- Cola: esperando respuesta de diseño ---- #}
+{% if en_espera %}
+<div class="bg-amber-500/5 border border-amber-500/30 rounded-xl p-4 mb-6">
+  <h2 class="font-semibold text-amber-300 mb-2">🎨 Esperando respuesta de diseño ({{ en_espera|length }})</h2>
+  <div class="space-y-1.5">
+    {% for p in en_espera %}
+    <div class="flex items-center gap-2 text-sm">
+      <span class="flex-1 truncate text-slate-200">{{ p.nombre }} <span class="text-slate-500">· {{ p.cliente or 'sin cliente' }}</span></span>
+      <form method="post" action="{{ url_for('cambiar_estado', pid=p.id) }}">
+        <input type="hidden" name="estado" value="Diseñando">
+        <button class="px-2.5 py-1 rounded-md bg-teal-500/15 text-teal-300 border border-teal-500/30 text-xs">▶ Empezar diseño</button>
+      </form>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
 
 <div class="bg-card border border-edge rounded-xl shadow-lg overflow-x-auto">
   <table class="w-full text-sm">
@@ -85,6 +121,7 @@
         <th class="p-3 text-right">Adelanto</th>
         <th class="p-3 text-right">Saldo pendiente</th>
         <th class="p-3">Registró</th>
+        <th class="p-3">Cobró / Deuda</th>
         <th class="p-3">Acciones</th>
       </tr>
     </thead>
@@ -151,8 +188,33 @@
           {% else %}<span class="text-slate-500">—</span>{% endif %}
         </td>
         <td class="p-3">
-          <div class="flex items-center gap-3">
+          {% if p.cobrador %}
+            <span class="inline-flex items-center gap-1.5">
+              <span class="w-2.5 h-2.5 rounded-full" style="background: {{ p.cobrador.color }}"></span>
+              <span class="text-slate-300">{{ p.cobrador.nombre }}</span>
+            </span>
+            {% if p.precio_total > 0 %}
+              <form method="post" action="{{ url_for('saldar_proyecto', pid=p.id) }}" class="mt-1">
+                {% if p.saldado %}
+                  <button class="text-xs px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">✔ Saldado</button>
+                {% else %}
+                  <button class="text-xs px-2 py-0.5 rounded-md bg-fuchsia-500/15 text-fuchsia-300 border border-fuchsia-500/30">💵 Marcar pagado ({{ p.parte_socio | money }})</button>
+                {% endif %}
+              </form>
+            {% endif %}
+          {% else %}<span class="text-slate-500 text-xs">Sin asignar</span>{% endif %}
+        </td>
+        <td class="p-3">
+          <div class="flex items-center gap-3 flex-wrap">
             <a href="{{ url_for('editar_proyecto', pid=p.id) }}" class="text-teal-400 hover:text-teal-300">Editar</a>
+            <a href="{{ url_for('recibo_pedido', pid=p.id) }}" target="_blank" class="text-slate-300 hover:text-teal-300">Recibo</a>
+            {% if p.cliente %}
+            <a href="{{ url_for('ficha_cliente', nombre=p.cliente) }}" class="text-indigo-300 hover:text-indigo-200">Cliente</a>
+            {% endif %}
+            {% if p.telefono %}
+            <a href="https://wa.me/{{ p.telefono | replace(' ', '') | replace('+', '') }}?text={{ ('Hola! Te escribo por tu pedido ' ~ p.nombre) | urlencode }}"
+               target="_blank" class="text-green-300 hover:text-green-200">WhatsApp</a>
+            {% endif %}
             {% if p.gcode_filename %}
             <a href="{{ url_for('descargar_gcode', pid=p.id) }}" class="text-cyan-400 hover:text-cyan-300">G-Code</a>
             {% endif %}
@@ -164,7 +226,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="9" class="p-4 text-center text-slate-500">Sin proyectos aún.</td></tr>
+      <tr><td colspan="10" class="p-4 text-center text-slate-500">Sin proyectos aún.</td></tr>
       {% endfor %}
     </tbody>
   </table>

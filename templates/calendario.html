@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block titulo %}Agenda{% endblock %}
+{% block contenido %}
+<div class="flex items-center justify-between mb-6">
+  <a href="{{ url_for('calendario', anio=prev[0], mes=prev[1]) }}"
+     class="px-3 py-2 rounded-lg bg-card border border-edge text-slate-300 hover:bg-cardh">← {{ meses[prev[1]] }}</a>
+  <h1 class="text-2xl font-bold text-slate-100">📅 {{ mes_nombre }} {{ anio }}</h1>
+  <a href="{{ url_for('calendario', anio=sig[0], mes=sig[1]) }}"
+     class="px-3 py-2 rounded-lg bg-card border border-edge text-slate-300 hover:bg-cardh">{{ meses[sig[1]] }} →</a>
+</div>
+
+<div class="grid grid-cols-7 gap-2 mb-2 text-center text-xs text-slate-500 font-medium">
+  {% for d in ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'] %}<div>{{ d }}</div>{% endfor %}
+</div>
+
+<div class="grid grid-cols-7 gap-2">
+  {% for semana in semanas %}
+    {% for dia in semana %}
+      {% if dia == 0 %}
+        <div class="min-h-[90px] rounded-xl bg-base/30"></div>
+      {% else %}
+        {% set items = por_dia.get(dia, []) %}
+        {% set es_hoy = (hoy.year == anio and hoy.month == mes and hoy.day == dia) %}
+        <div class="min-h-[90px] rounded-xl border p-1.5 {{ 'border-teal-400/60 bg-teal-500/5' if es_hoy else 'border-edge bg-card' }}">
+          <div class="text-xs {{ 'text-teal-300 font-bold' if es_hoy else 'text-slate-500' }}">{{ dia }}</div>
+          <div class="space-y-1 mt-1">
+            {% for p in items[:4] %}
+            <a href="{{ url_for('editar_proyecto', pid=p.id) }}"
+               title="{{ p.nombre }} · {{ p.cliente or '' }} ({{ p.estado }})"
+               class="block truncate text-[11px] px-1.5 py-0.5 rounded
+               {% if p.estado == 'Entregado' %}bg-green-500/15 text-green-300
+               {% elif p.es_urgente %}bg-rose-500/15 text-rose-300
+               {% else %}bg-cardh text-slate-300{% endif %}">
+              {{ p.nombre }}
+            </a>
+            {% endfor %}
+            {% if items|length > 4 %}<div class="text-[10px] text-slate-500">+{{ items|length - 4 }} más</div>{% endif %}
+          </div>
+        </div>
+      {% endif %}
+    {% endfor %}
+  {% endfor %}
+</div>
+
+<p class="text-xs text-slate-500 mt-4">
+  <span class="inline-block w-2 h-2 rounded-full bg-rose-400"></span> urgente ·
+  <span class="inline-block w-2 h-2 rounded-full bg-green-400"></span> entregado ·
+  toca un pedido para editarlo.
+</p>
+{% endblock %}

@@ -1,9 +1,15 @@
 """Modelos de base de datos (SQLite via SQLAlchemy)."""
+import secrets
 from datetime import date, datetime
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
 
 db = SQLAlchemy()
+
+
+def _token_seguimiento():
+    """Token corto e irrepetible para el link público de seguimiento."""
+    return secrets.token_urlsafe(8)
 
 
 class User(UserMixin, db.Model):
@@ -22,7 +28,9 @@ class User(UserMixin, db.Model):
 
     ventas = db.relationship("Venta", backref="usuario", lazy=True)
     gastos = db.relationship("Gasto", backref="usuario", lazy=True)
-    proyectos = db.relationship("Proyecto", backref="usuario", lazy=True)
+    # Proyecto tiene 2 FK a usuarios (quién registró y quién cobró): desambiguamos.
+    proyectos = db.relationship("Proyecto", backref="usuario", lazy=True,
+                                foreign_keys="Proyecto.usuario_id")
 
     def __repr__(self):
         return f"<User {self.username}>"
@@ -77,13 +85,19 @@ class Proyecto(db.Model):
     """Pieza o proyecto de impresión."""
     __tablename__ = "proyectos"
 
-    # Flujo completo: Diseñando -> Por imprimir -> Imprimiendo -> Terminado -> Entregado
-    ESTADOS = ["Diseñando", "Por imprimir", "Imprimiendo", "Terminado", "Entregado"]
+    # Flujo completo: En espera -> Diseñando -> Por imprimir -> Imprimiendo -> Terminado -> Entregado
+    #   "En espera"  = el cliente nos mandó su diseño y espera respuesta (cola previa).
+    #   "Cancelado"  = pedido anulado (estado terminal, fuera del flujo lineal).
+    ESTADOS = ["En espera", "Diseñando", "Por imprimir", "Imprimiendo",
+               "Terminado", "Entregado", "Cancelado"]
+    # Estados que sacan el pedido del tablero de producción activa.
+    ESTADOS_CERRADOS = ("Entregado", "Cancelado")
 
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(120), nullable=False)
     cliente = db.Column(db.String(120))
-    estado = db.Column(db.String(20), default="Diseñando")
+    telefono = db.Column(db.String(40))                      # WhatsApp del cliente (para avisar)
+    estado = db.Column(db.String(20), default="En espera")
 
     # Datos técnicos
     peso_g = db.Column(db.Float, default=0.0)                 # gramos de la pieza
@@ -93,14 +107,25 @@ class Proyecto(db.Model):
     filamento_id = db.Column(db.Integer, db.ForeignKey("filamentos.id"))
     fecha_entrega = db.Column(db.Date)                        # fecha comprometida de entrega
     gcode_filename = db.Column(db.String(120))               # nombre del archivo G-code/3MF en disco
-    imagen_filename = db.Column(db.String(120))              # foto de la pieza (JPG/PNG/WEBP) en disco
+    imagen_filename = db.Column(db.String(120))              # foto principal de la pieza (JPG/PNG/WEBP)
+    orden = db.Column(db.Integer, default=0)                  # orden manual en la cola de impresión
+    public_token = db.Column(db.String(24), default=_token_seguimiento, unique=True)  # link público
 
     # Cobranza (adelantos / saldos). El proyecto ES la venta: unifica ambos módulos.
     precio_total = db.Column(db.Float, default=0.0)           # precio acordado del pedido
     adelanto = db.Column(db.Float, default=0.0)               # dinero ya cobrado (parcial o total)
 
-    usuario_id = db.Column(db.Integer, db.ForeignKey("usuarios.id"))
+    # Quién cobró la plata del cliente (se ELIGE, no se asume). Y si esa persona
+    # ya le pasó su parte al otro socio (saldo de la deuda interna del pedido).
+    cobrador_id = db.Column(db.Integer, db.ForeignKey("usuarios.id"))
+    saldado = db.Column(db.Boolean, default=False)           # ¿ya me pasó mi parte de este pedido?
+    fecha_saldado = db.Column(db.DateTime)
+    fecha_entregado = db.Column(db.DateTime)                  # cuándo pasó a 'Entregado'
+
+    usuario_id = db.Column(db.Integer, db.ForeignKey("usuarios.id"))   # quién registró el pedido
     creado = db.Column(db.DateTime, default=datetime.utcnow)
+
+    cobrador = db.relationship("User", foreign_keys=[cobrador_id])
 
     @property
     def saldo_pendiente(self):
@@ -119,6 +144,8 @@ class Proyecto(db.Model):
         el estado es 'Entregado' o el saldo pendiente es 0 (pedido cancelado
         en su totalidad). Los adelantos/pagos parciales NO se reconocen antes.
         """
+        if self.estado == "Cancelado":
+            return 0.0
         if self.estado == "Entregado" or self.pagado_completo:
             return self.precio_total or 0.0
         return 0.0
@@ -131,6 +158,33 @@ class Proyecto(db.Model):
         return round(self.peso_g * self.filamento.precio_por_gramo, 2)
 
     @property
+    def ganancia(self):
+        """Ganancia estimada del pedido = precio acordado - costo de filamento."""
+        return round((self.precio_total or 0.0) - self.costo_filamento, 2)
+
+    @property
+    def parte_socio(self):
+        """
+        Lo que le corresponde a CADA socio de este pedido (reparto 50/50 del
+        precio cobrado). Sirve para la deuda interna: si un socio cobró todo,
+        le debe esta parte al otro hasta marcar el pedido como 'saldado'.
+        """
+        return round((self.precio_total or 0.0) / 2.0, 2)
+
+    @property
+    def deuda_interna_pendiente(self):
+        """
+        True si este pedido genera una deuda entre socios aún sin saldar:
+        fue cobrado (hay cobrador y dinero) y todavía no se pasó la parte.
+        """
+        return bool(self.cobrador_id) and not self.saldado and (self.precio_total or 0.0) > 0
+
+    @property
+    def cerrado(self):
+        """El pedido salió del tablero de producción (Entregado o Cancelado)."""
+        return self.estado in self.ESTADOS_CERRADOS
+
+    @property
     def dias_restantes(self):
         """Días hasta la entrega (negativo = retrasado). None si no tiene fecha."""
         if not self.fecha_entrega:
@@ -139,8 +193,8 @@ class Proyecto(db.Model):
 
     @property
     def es_urgente(self):
-        """Vence en <= 2 días o ya está retrasado, y aún no se ha entregado."""
-        if self.estado == "Entregado" or self.dias_restantes is None:
+        """Vence en <= 2 días o ya está retrasado, y sigue en producción."""
+        if self.cerrado or self.estado == "En espera" or self.dias_restantes is None:
             return False
         return self.dias_restantes <= 2
 
@@ -162,6 +216,46 @@ class Proyecto(db.Model):
 
     def __repr__(self):
         return f"<Proyecto {self.nombre} ({self.estado})>"
+
+
+class FotoPedido(db.Model):
+    """Fotos adicionales de un pedido (galería de proceso y resultado)."""
+    __tablename__ = "fotos_pedido"
+
+    id = db.Column(db.Integer, primary_key=True)
+    proyecto_id = db.Column(db.Integer, db.ForeignKey("proyectos.id"), nullable=False)
+    filename = db.Column(db.String(120), nullable=False)
+    nota = db.Column(db.String(160))
+    creado = db.Column(db.DateTime, default=datetime.utcnow)
+
+    proyecto = db.relationship(
+        "Proyecto",
+        backref=db.backref("fotos", lazy=True, cascade="all, delete-orphan"))
+
+
+class Impresora(db.Model):
+    """Impresora del taller con control de horas y mantenimiento de boquilla."""
+    __tablename__ = "impresoras"
+
+    id = db.Column(db.Integer, primary_key=True)
+    nombre = db.Column(db.String(80), nullable=False)
+    horas_totales = db.Column(db.Float, default=0.0)          # horas de uso acumuladas
+    horas_ultimo_mant = db.Column(db.Float, default=0.0)      # horas al último mantenimiento
+    intervalo_mant_h = db.Column(db.Float, default=250.0)     # cada cuántas horas revisar boquilla
+    nota = db.Column(db.String(200))
+    activa = db.Column(db.Boolean, default=True)
+    creado = db.Column(db.DateTime, default=datetime.utcnow)
+
+    @property
+    def horas_desde_mant(self):
+        return round((self.horas_totales or 0.0) - (self.horas_ultimo_mant or 0.0), 1)
+
+    @property
+    def necesita_mant(self):
+        return self.horas_desde_mant >= (self.intervalo_mant_h or 0)
+
+    def __repr__(self):
+        return f"<Impresora {self.nombre}>"
 
 
 class Venta(db.Model):

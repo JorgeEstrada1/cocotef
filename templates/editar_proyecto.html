@@ -86,6 +86,10 @@
       <input name="cliente" value="{{ p.cliente or '' }}" class="{{ inp }}">
     </label>
     <label class="block">
+      <span class="text-sm text-slate-400">WhatsApp del cliente</span>
+      <input name="telefono" value="{{ p.telefono or '' }}" placeholder="ej. 591…" class="{{ inp }}">
+    </label>
+    <label class="block">
       <span class="text-sm text-slate-400">Estado</span>
       <select name="estado" class="{{ inp }}">
         {% for e in estados %}<option {{ 'selected' if e == p.estado }}>{{ e }}</option>{% endfor %}
@@ -114,11 +118,20 @@
       </select>
     </label>
     <label class="block">
-      <span class="text-sm text-slate-400">Responsable</span>
+      <span class="text-sm text-slate-400">Responsable (registró)</span>
       <select name="usuario_id" class="{{ inp }}">
         <option value="">— Nadie —</option>
         {% for u in usuarios %}
           <option value="{{ u.id }}" {{ 'selected' if u.id == p.usuario_id }}>{{ u.nombre }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="block">
+      <span class="text-sm text-slate-400">¿Quién cobró? (deuda interna)</span>
+      <select name="cobrador_id" class="{{ inp }}">
+        <option value="">— Sin cobrar aún —</option>
+        {% for u in usuarios %}
+          <option value="{{ u.id }}" {{ 'selected' if u.id == p.cobrador_id }}>{{ u.nombre }}</option>
         {% endfor %}
       </select>
     </label>

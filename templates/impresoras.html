@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block titulo %}Impresoras{% endblock %}
+{% block contenido %}
+{% set inp = "bg-base border border-edge rounded-lg px-3 py-2 text-slate-100 placeholder-slate-600 focus:border-teal-400 outline-none" %}
+<h1 class="text-2xl font-bold mb-6 text-slate-100">🖨️ Impresoras y mantenimiento</h1>
+
+<div class="bg-card border border-edge rounded-xl shadow-lg p-5 mb-6">
+  <h2 class="font-semibold mb-3 text-slate-200">Agregar impresora</h2>
+  <form method="post" action="{{ url_for('nueva_impresora') }}" class="grid grid-cols-1 md:grid-cols-4 gap-3">
+    <input name="nombre" placeholder="Nombre (ej. Bambu A1) *" required class="{{ inp }}">
+    <input name="horas_totales" type="number" step="1" placeholder="Horas actuales" class="{{ inp }}">
+    <input name="intervalo_mant_h" type="number" step="1" value="250" placeholder="Mantenimiento cada (h)" class="{{ inp }}">
+    <button class="bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-900 font-semibold rounded-lg py-2 hover:opacity-90">Guardar</button>
+  </form>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+  {% for m in impresoras %}
+  <div class="bg-card border {{ 'border-amber-500/40' if m.necesita_mant else 'border-edge' }} rounded-xl p-4">
+    <div class="flex items-center justify-between">
+      <h3 class="font-bold text-lg text-slate-100">{{ m.nombre }}</h3>
+      {% if m.necesita_mant %}
+      <span class="text-xs px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-300 border border-amber-500/30">⚠️ Revisar boquilla</span>
+      {% endif %}
+    </div>
+    <p class="text-sm text-slate-400 mt-1">
+      <b class="text-slate-200">{{ '%.0f'|format(m.horas_totales or 0) }} h</b> totales ·
+      {{ '%.0f'|format(m.horas_desde_mant) }} h desde el último mantenimiento
+      <span class="text-slate-600">(revisar cada {{ '%.0f'|format(m.intervalo_mant_h or 0) }} h)</span>
+    </p>
+    <div class="mt-2 h-2 rounded-full bg-base overflow-hidden">
+      {% set pct = (m.horas_desde_mant / m.intervalo_mant_h * 100) if m.intervalo_mant_h else 0 %}
+      <div class="h-full rounded-full {{ 'bg-amber-400' if m.necesita_mant else 'bg-gradient-to-r from-teal-500 to-cyan-500' }}"
+           style="width: {{ [pct, 100] | min }}%"></div>
+    </div>
+    <div class="flex flex-wrap gap-2 mt-3">
+      <form method="post" action="{{ url_for('sumar_horas_impresora', mid=m.id) }}" class="flex gap-1">
+        <input name="horas" type="number" step="0.5" placeholder="+ horas" class="{{ inp }} w-24 text-sm py-1.5">
+        <button class="px-3 py-1.5 rounded-lg text-sm bg-base border border-edge text-slate-300 hover:bg-cardh">Sumar</button>
+      </form>
+      <form method="post" action="{{ url_for('mantenimiento_impresora', mid=m.id) }}">
+        <button class="px-3 py-1.5 rounded-lg text-sm bg-teal-500/15 text-teal-300 border border-teal-500/30 hover:bg-teal-500/25">🔧 Mantenimiento hecho</button>
+      </form>
+      <form method="post" action="{{ url_for('eliminar_impresora', mid=m.id) }}"
+            onsubmit="return confirm('¿Eliminar impresora?')">
+        <button class="px-3 py-1.5 rounded-lg text-sm text-rose-400 hover:text-rose-300">Eliminar</button>
+      </form>
+    </div>
+  </div>
+  {% else %}
+  <p class="text-slate-500">Sin impresoras registradas todavía.</p>
+  {% endfor %}
+</div>
+{% endblock %}

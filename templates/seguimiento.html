@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Seguimiento · {{ p.nombre }}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 font-sans min-h-screen flex items-center justify-center p-4">
+  <div class="max-w-sm w-full bg-slate-800 rounded-2xl shadow-2xl border border-slate-700 overflow-hidden">
+    {% if p.imagen_filename %}
+    <img src="{{ url_for('api_imagen', filename=p.imagen_filename) }}"
+         class="w-full h-48 object-cover">
+    {% endif %}
+    <div class="p-5">
+      <div class="flex items-center gap-2 mb-1">
+        <span class="text-xl">🖨️</span>
+        <span class="text-sm text-teal-300 font-semibold">Taller 3D</span>
+      </div>
+      <h1 class="text-xl font-bold">{{ p.nombre }}</h1>
+      <p class="text-sm text-slate-400 mb-5">Hola{{ ' ' ~ p.cliente if p.cliente else '' }}, este es el estado de tu pedido:</p>
+
+      {% if p.estado == 'Cancelado' %}
+        <div class="bg-rose-500/10 border border-rose-500/30 rounded-xl p-4 text-center text-rose-300">Este pedido fue cancelado.</div>
+      {% else %}
+      <div class="space-y-3">
+        {% for paso in pasos %}
+        {% set hecho = loop.index0 <= idx %}
+        {% set actual = loop.index0 == idx %}
+        <div class="flex items-center gap-3">
+          <span class="w-7 h-7 rounded-full flex items-center justify-center text-sm shrink-0
+                {{ 'bg-teal-500 text-slate-900' if hecho else 'bg-slate-700 text-slate-500' }}
+                {{ 'ring-2 ring-teal-400 ring-offset-2 ring-offset-slate-800' if actual else '' }}">
+            {{ '✓' if hecho and not actual else loop.index }}
+          </span>
+          <span class="{{ 'text-slate-100 font-semibold' if actual else ('text-slate-300' if hecho else 'text-slate-500') }}">
+            {{ paso }}{% if actual %} <span class="text-teal-300 text-xs">← aquí</span>{% endif %}
+          </span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {% if p.fecha_entrega %}
+      <p class="text-center text-sm text-slate-400 mt-5">📅 Entrega estimada: <b class="text-slate-200">{{ p.fecha_entrega.strftime('%d/%m/%Y') }}</b></p>
+      {% endif %}
+    </div>
+  </div>
+</body>
+</html>

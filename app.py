@@ -29,7 +29,8 @@ from sqlalchemy import extract, inspect, text
 from config import Config
 from models import (db, User, Filamento, Proyecto, Venta, Gasto,
                     Liquidacion, Inversion, AbonoInversion,
-                    Feria, FeriaInventario, FeriaVenta)
+                    Feria, FeriaInventario, FeriaVenta,
+                    FotoPedido, Impresora)
 
 MESES = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
          "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
@@ -66,12 +67,15 @@ def nombre_a_hex(nombre):
 # Alias de estados aceptados por la API móvil -> estado canónico del modelo.
 # Permite que el frontend use nombres amigables ("En impresión", "Listo").
 ALIAS_ESTADO = {
+    "en espera": "En espera", "espera": "En espera", "por diseñar": "En espera",
+    "por disenar": "En espera", "cola diseño": "En espera",
     "diseñando": "Diseñando", "disenando": "Diseñando", "diseno": "Diseñando",
     "por imprimir": "Por imprimir", "en cola": "Por imprimir",
     "imprimiendo": "Imprimiendo", "en impresión": "Imprimiendo",
     "en impresion": "Imprimiendo", "imprimiendo…": "Imprimiendo",
     "terminado": "Terminado", "listo": "Terminado", "lista": "Terminado",
     "entregado": "Entregado", "entregada": "Entregado", "enviado": "Entregado",
+    "cancelado": "Cancelado", "cancelada": "Cancelado", "anulado": "Cancelado",
 }
 
 
@@ -83,6 +87,23 @@ def normalizar_estado(valor):
     if v in Proyecto.ESTADOS:
         return v
     return ALIAS_ESTADO.get(v.lower())
+
+# Cotizador automático: precio sugerido a partir del costo de filamento, las
+# horas de máquina y un margen. Valores en Bs.; ajústalos a tu realidad.
+COTIZADOR = {
+    "tarifa_hora": 3.0,     # Bs. por hora de impresión (desgaste + luz + tiempo)
+    "margen": 1.6,          # multiplicador sobre el costo (ganancia)
+    "minimo": 15.0,         # precio mínimo por pedido (setup)
+}
+
+
+def cotizar_precio(costo_filamento, horas):
+    """Precio sugerido (Bs.) redondeado a múltiplos de 5, con piso mínimo."""
+    base = (float(costo_filamento or 0) + float(horas or 0) * COTIZADOR["tarifa_hora"])
+    sugerido = base * COTIZADOR["margen"]
+    sugerido = max(sugerido, COTIZADOR["minimo"])
+    return round(sugerido / 5.0) * 5.0
+
 
 # Credenciales sembradas por defecto en el primer arranque.
 # IMPORTANTE: cambia estas contraseñas después de iniciar sesión.
@@ -171,6 +192,21 @@ def migrar_esquema():
             conn.execute(text("ALTER TABLE proyectos ADD COLUMN horas_impresion FLOAT DEFAULT 0"))
         if "inicio_impresion" not in proy_cols:
             conn.execute(text("ALTER TABLE proyectos ADD COLUMN inicio_impresion DATETIME"))
+        # --- v2.2: cobro manual, deuda interna, WhatsApp, cola y link público ---
+        if "telefono" not in proy_cols:
+            conn.execute(text("ALTER TABLE proyectos ADD COLUMN telefono VARCHAR(40)"))
+        if "orden" not in proy_cols:
+            conn.execute(text("ALTER TABLE proyectos ADD COLUMN orden INTEGER DEFAULT 0"))
+        if "public_token" not in proy_cols:
+            conn.execute(text("ALTER TABLE proyectos ADD COLUMN public_token VARCHAR(24)"))
+        if "cobrador_id" not in proy_cols:
+            conn.execute(text("ALTER TABLE proyectos ADD COLUMN cobrador_id INTEGER"))
+        if "saldado" not in proy_cols:
+            conn.execute(text("ALTER TABLE proyectos ADD COLUMN saldado BOOLEAN DEFAULT 0"))
+        if "fecha_saldado" not in proy_cols:
+            conn.execute(text("ALTER TABLE proyectos ADD COLUMN fecha_saldado DATETIME"))
+        if "fecha_entregado" not in proy_cols:
+            conn.execute(text("ALTER TABLE proyectos ADD COLUMN fecha_entregado DATETIME"))
 
         # --- Módulo de Ferias (v2.0+): métricas de material y funciones de venta ---
         tablas = inspect(db.engine).get_table_names()
@@ -188,6 +224,20 @@ def migrar_esquema():
                 conn.execute(text("ALTER TABLE ferias_ventas ADD COLUMN tipo VARCHAR(20) DEFAULT 'venta'"))
             if "nota" not in venta_cols:
                 conn.execute(text("ALTER TABLE ferias_ventas ADD COLUMN nota VARCHAR(200)"))
+
+    # Backfill: genera token de seguimiento a los pedidos que aún no tienen.
+    import secrets as _secrets
+    sin_token = Proyecto.query.filter(
+        (Proyecto.public_token.is_(None)) | (Proyecto.public_token == "")).all()
+    if sin_token:
+        usados = {p.public_token for p in Proyecto.query.all() if p.public_token}
+        for p in sin_token:
+            tok = _secrets.token_urlsafe(8)
+            while tok in usados:
+                tok = _secrets.token_urlsafe(8)
+            usados.add(tok)
+            p.public_token = tok
+        db.session.commit()
 
 
 def migrar_y_sembrar_usuarios():
@@ -676,16 +726,36 @@ def registrar_rutas(app):
         enviada = request.headers.get("X-API-Key") or request.args.get("api_key")
         return enviada == requerida
 
+    def _socio_a_json(u):
+        if not u:
+            return None
+        return {"id": u.id, "nombre": u.nombre, "color": u.color}
+
     def _proyecto_a_json(p):
         fin = p.fin_impresion_estimado
         return {
             "id": p.id,
             "nombre": p.nombre,
             "cliente": p.cliente or "",
+            "telefono": p.telefono or "",
             "estado": p.estado,
             "foto_url": _url_imagen(p.imagen_filename),
+            "fotos": [_url_imagen(f.filename) for f in p.fotos],
             "fecha_entrega_iso": p.fecha_entrega.isoformat() if p.fecha_entrega else None,
+            "orden": p.orden or 0,
+            "public_token": p.public_token,
+            # Cobranza / deuda interna
+            "precio_total": p.precio_total or 0.0,
+            "adelanto": p.adelanto or 0.0,
             "saldo_pendiente": p.saldo_pendiente,
+            "pagado_completo": p.pagado_completo,
+            "ganancia": p.ganancia,
+            "costo_filamento": p.costo_filamento,
+            "cobrador": _socio_a_json(p.cobrador),
+            "saldado": bool(p.saldado),
+            "parte_socio": p.parte_socio,
+            "deuda_pendiente": p.deuda_interna_pendiente,
+            "cerrado": p.cerrado,
             # Monitor de impresión
             "tiempo_estimado_h": p.tiempo_estimado_h or 0.0,
             "horas_impresion": p.horas_impresion or 0.0,
@@ -717,14 +787,31 @@ def registrar_rutas(app):
     def api_pedidos_activos():
         if not _api_key_ok():
             return jsonify({"ok": False, "error": "API key inválida."}), 401
-        activos = Proyecto.query.filter(Proyecto.estado != "Entregado").all()
-        activos.sort(key=lambda p: (p.fecha_entrega is None,
-                                    p.fecha_entrega or date.max,
-                                    -(p.id or 0)))
+        from datetime import timedelta
+        limite = datetime.utcnow() - timedelta(days=7)
+        todos = Proyecto.query.filter(Proyecto.estado != "Cancelado").all()
+
+        def visible(p):
+            # En producción siempre; entregados solo los de los últimos 7 días.
+            if p.estado != "Entregado":
+                return True
+            return (p.fecha_entregado or p.creado or datetime.min) >= limite
+
+        lista = [p for p in todos if visible(p)]
+        # Pendientes arriba (por fecha de entrega / cola), entregados al fondo.
+        lista.sort(key=lambda p: (
+            p.estado == "Entregado",                       # entregados últimos
+            p.fecha_entrega is None,                        # sin fecha, después
+            p.fecha_entrega or date.max,                    # entrega más próxima arriba
+            p.orden or 0,
+            -(p.id or 0),
+        ))
+        pendientes = sum(1 for p in lista if p.estado != "Entregado")
         return jsonify({
             "ok": True,
-            "count": len(activos),
-            "pedidos": [_proyecto_a_json(p) for p in activos],
+            "count": pendientes,
+            "total": len(lista),
+            "pedidos": [_proyecto_a_json(p) for p in lista],
         })
 
     @app.route("/api/v1/pedidos/<int:pid>/estado", methods=["PATCH", "POST"])
@@ -741,10 +828,13 @@ def registrar_rutas(app):
         # Al arrancar la impresión guardamos la hora de inicio para el monitor/timer.
         if estado == "Imprimiendo" and p.estado != "Imprimiendo":
             p.inicio_impresion = datetime.utcnow()
+        # Marca la fecha de entrega real la primera vez que pasa a "Entregado".
+        if estado == "Entregado" and p.estado != "Entregado":
+            p.fecha_entregado = datetime.utcnow()
         p.estado = estado
         db.session.commit()
         return jsonify({"ok": True, "pedido": _proyecto_a_json(p),
-                        "activo": p.estado != "Entregado"})
+                        "activo": not p.cerrado})
 
     @app.route("/api/v1/filamentos-stock")
     def api_filamentos_stock():
@@ -779,6 +869,320 @@ def registrar_rutas(app):
         db.session.commit()
         return jsonify({"ok": True, "pedido": _proyecto_a_json(p),
                         "foto_url": _url_imagen(p.imagen_filename)})
+
+    # ======================================================================
+    #  API REST v1 — extensiones (v2.2): cobro, deuda, calendario, clientes,
+    #  fotos, cola, impresoras, dashboard y cotizador.
+    # ======================================================================
+    @app.route("/api/v1/usuarios")
+    def api_usuarios():
+        if not _api_key_ok():
+            return jsonify({"ok": False, "error": "API key inválida."}), 401
+        socios = User.query.order_by(User.id).all()
+        return jsonify({"ok": True, "usuarios": [_socio_a_json(u) for u in socios]})
+
+    @app.route("/api/v1/pedidos/<int:pid>/cobrador", methods=["PATCH", "POST"])
+    def api_set_cobrador(pid):
+        if not _api_key_ok():
+            return jsonify({"ok": False, "error": "API key inválida."}), 401
+        p = Proyecto.query.get_or_404(pid)
+        datos = request.get_json(silent=True) or request.form
+        cid = datos.get("cobrador_id")
+        p.cobrador_id = int(cid) if cid not in (None, "", "0") else None
+        if not p.cobrador_id:            # sin cobrador no hay deuda que saldar
+            p.saldado = False
+            p.fecha_saldado = None
+        db.session.commit()
+        return jsonify({"ok": True, "pedido": _proyecto_a_json(p)})
+
+    @app.route("/api/v1/pedidos/<int:pid>/saldar", methods=["PATCH", "POST"])
+    def api_saldar(pid):
+        if not _api_key_ok():
+            return jsonify({"ok": False, "error": "API key inválida."}), 401
+        p = Proyecto.query.get_or_404(pid)
+        datos = request.get_json(silent=True) or request.form
+        valor = datos.get("saldado", True)
+        p.saldado = str(valor).lower() not in ("false", "0", "no", "")
+        p.fecha_saldado = datetime.utcnow() if p.saldado else None
+        db.session.commit()
+        return jsonify({"ok": True, "pedido": _proyecto_a_json(p)})
+
+    @app.route("/api/v1/pedidos/<int:pid>", methods=["PATCH", "POST"])
+    def api_editar_pedido(pid):
+        """Edición ligera de datos del pedido desde el celular."""
+        if not _api_key_ok():
+            return jsonify({"ok": False, "error": "API key inválida."}), 401
+        p = Proyecto.query.get_or_404(pid)
+        d = request.get_json(silent=True) or request.form
+        if "nombre" in d and d.get("nombre"):
+            p.nombre = str(d.get("nombre")).strip()
+        if "cliente" in d:
+            p.cliente = (d.get("cliente") or "").strip()
+        if "telefono" in d:
+            p.telefono = (d.get("telefono") or "").strip()
+        if "precio_total" in d:
+            p.precio_total = float(d.get("precio_total") or 0)
+        if "adelanto" in d:
+            p.adelanto = float(d.get("adelanto") or 0)
+        if "peso_g" in d:
+            p.peso_g = float(d.get("peso_g") or 0)
+        if "tiempo_estimado_h" in d:
+            p.tiempo_estimado_h = float(d.get("tiempo_estimado_h") or 0)
+        if "filamento_id" in d:
+            fid = d.get("filamento_id")
+            p.filamento_id = int(fid) if fid not in (None, "", "0") else None
+        if "fecha_entrega" in d:
+            p.fecha_entrega = _parse_fecha_opt(d.get("fecha_entrega"))
+        db.session.commit()
+        return jsonify({"ok": True, "pedido": _proyecto_a_json(p)})
+
+    @app.route("/api/v1/pedidos", methods=["POST"])
+    def api_crear_pedido():
+        """Crea un pedido desde la PWA (el cobrador se ELIGE, no se asume)."""
+        if not _api_key_ok():
+            return jsonify({"ok": False, "error": "API key inválida."}), 401
+        d = request.get_json(silent=True) or request.form
+        nombre = (d.get("nombre") or "").strip()
+        if not nombre:
+            return jsonify({"ok": False, "error": "El nombre es obligatorio."}), 400
+        cid = d.get("cobrador_id")
+        fid = d.get("filamento_id")
+        p = Proyecto(
+            nombre=nombre,
+            cliente=(d.get("cliente") or "").strip(),
+            telefono=(d.get("telefono") or "").strip(),
+            estado=normalizar_estado(d.get("estado")) or "En espera",
+            peso_g=float(d.get("peso_g") or 0),
+            tiempo_estimado_h=float(d.get("tiempo_estimado_h") or 0),
+            filamento_id=int(fid) if fid not in (None, "", "0") else None,
+            fecha_entrega=_parse_fecha_opt(d.get("fecha_entrega")),
+            precio_total=float(d.get("precio_total") or 0),
+            adelanto=float(d.get("adelanto") or 0),
+            cobrador_id=int(cid) if cid not in (None, "", "0") else None,
+        )
+        db.session.add(p)
+        db.session.commit()
+        return jsonify({"ok": True, "pedido": _proyecto_a_json(p)})
+
+    @app.route("/api/v1/pedidos-calendario")
+    def api_pedidos_calendario():
+        if not _api_key_ok():
+            return jsonify({"ok": False, "error": "API key inválida."}), 401
+        hoy = date.today()
+        try:
+            anio = int(request.args.get("anio") or hoy.year)
+            mes = int(request.args.get("mes") or hoy.month)
+        except ValueError:
+            anio, mes = hoy.year, hoy.month
+        q = Proyecto.query.filter(
+            Proyecto.fecha_entrega.isnot(None),
+            Proyecto.estado != "Cancelado",
+            extract("year", Proyecto.fecha_entrega) == anio,
+            extract("month", Proyecto.fecha_entrega) == mes,
+        ).all()
+        dias = {}
+        for p in q:
+            k = p.fecha_entrega.isoformat()
+            dias.setdefault(k, []).append({
+                "id": p.id, "nombre": p.nombre, "cliente": p.cliente or "",
+                "estado": p.estado, "urgente": p.es_urgente,
+                "entregado": p.estado == "Entregado",
+            })
+        return jsonify({"ok": True, "anio": anio, "mes": mes, "dias": dias})
+
+    @app.route("/api/v1/resumen-deuda")
+    def api_resumen_deuda():
+        """Deuda interna entre socios por pedidos cobrados y aún no saldados."""
+        if not _api_key_ok():
+            return jsonify({"ok": False, "error": "API key inválida."}), 401
+        pendientes = Proyecto.query.filter(
+            Proyecto.cobrador_id.isnot(None),
+            Proyecto.saldado == False,                      # noqa: E712
+            Proyecto.precio_total > 0,
+            Proyecto.estado != "Cancelado",
+        ).all()
+        # Cada cobrador le debe al OTRO socio la parte del otro (50%).
+        por_cobrador = {}
+        for p in pendientes:
+            e = por_cobrador.setdefault(p.cobrador_id, {"monto": 0.0, "count": 0,
+                                                         "nombre": p.cobrador.nombre})
+            e["monto"] += p.parte_socio
+            e["count"] += 1
+        detalle = [{"cobrador_id": k, "cobrador": v["nombre"],
+                    "debe": round(v["monto"], 2), "pedidos": v["count"]}
+                   for k, v in por_cobrador.items()]
+        return jsonify({"ok": True, "detalle": detalle,
+                        "total_pendiente": round(sum(d["debe"] for d in detalle), 2)})
+
+    @app.route("/api/v1/clientes")
+    def api_clientes():
+        if not _api_key_ok():
+            return jsonify({"ok": False, "error": "API key inválida."}), 401
+        clientes = {}
+        for p in Proyecto.query.filter(Proyecto.cliente.isnot(None),
+                                       Proyecto.cliente != "").all():
+            c = clientes.setdefault(p.cliente.strip(), {
+                "cliente": p.cliente.strip(), "telefono": "", "pedidos": 0,
+                "total_gastado": 0.0, "activos": 0})
+            c["pedidos"] += 1
+            c["total_gastado"] += p.ingreso_reconocido
+            if not p.cerrado:
+                c["activos"] += 1
+            if p.telefono and not c["telefono"]:
+                c["telefono"] = p.telefono
+        lista = sorted(clientes.values(), key=lambda c: -c["total_gastado"])
+        for c in lista:
+            c["total_gastado"] = round(c["total_gastado"], 2)
+        return jsonify({"ok": True, "clientes": lista})
+
+    @app.route("/api/v1/pedidos/<int:pid>/fotos", methods=["POST"])
+    def api_agregar_foto(pid):
+        if not _api_key_ok():
+            return jsonify({"ok": False, "error": "API key inválida."}), 401
+        p = Proyecto.query.get_or_404(pid)
+        archivo = request.files.get("foto") or request.files.get("imagen")
+        if not archivo or not archivo.filename:
+            return jsonify({"ok": False, "error": "No se recibió ninguna foto."}), 400
+        guardada = _guardar_imagen(archivo)
+        if not guardada:
+            return jsonify({"ok": False, "error": "Formato no soportado."}), 400
+        if not p.imagen_filename:        # la primera foto también es la principal
+            p.imagen_filename = guardada
+        db.session.add(FotoPedido(proyecto_id=p.id, filename=guardada,
+                                  nota=(request.form.get("nota") or "").strip()))
+        db.session.commit()
+        return jsonify({"ok": True, "pedido": _proyecto_a_json(p),
+                        "foto_url": _url_imagen(guardada)})
+
+    @app.route("/api/v1/fotos/<int:fid>", methods=["DELETE", "POST"])
+    def api_borrar_foto(fid):
+        if not _api_key_ok():
+            return jsonify({"ok": False, "error": "API key inválida."}), 401
+        f = FotoPedido.query.get_or_404(fid)
+        _borrar_imagen(f.filename)
+        db.session.delete(f)
+        db.session.commit()
+        return jsonify({"ok": True})
+
+    @app.route("/api/v1/pedidos/reordenar", methods=["POST", "PATCH"])
+    def api_reordenar():
+        if not _api_key_ok():
+            return jsonify({"ok": False, "error": "API key inválida."}), 401
+        d = request.get_json(silent=True) or {}
+        ids = d.get("orden") or []
+        for i, pid in enumerate(ids):
+            p = Proyecto.query.get(int(pid))
+            if p:
+                p.orden = i
+        db.session.commit()
+        return jsonify({"ok": True})
+
+    @app.route("/api/v1/gastos", methods=["POST"])
+    def api_crear_gasto():
+        if not _api_key_ok():
+            return jsonify({"ok": False, "error": "API key inválida."}), 401
+        d = request.get_json(silent=True) or request.form
+        monto = float(d.get("monto") or 0)
+        if monto <= 0:
+            return jsonify({"ok": False, "error": "El monto debe ser mayor a 0."}), 400
+        uid = d.get("usuario_id")
+        g = Gasto(
+            categoria=d.get("categoria") or "Otro",
+            descripcion=(d.get("descripcion") or "").strip(),
+            monto=monto,
+            usuario_id=int(uid) if uid not in (None, "", "0") else None,
+        )
+        db.session.add(g)
+        db.session.commit()
+        return jsonify({"ok": True, "gasto": {"id": g.id, "monto": g.monto,
+                        "categoria": g.categoria, "descripcion": g.descripcion}})
+
+    @app.route("/api/v1/cotizar")
+    def api_cotizar():
+        if not _api_key_ok():
+            return jsonify({"ok": False, "error": "API key inválida."}), 401
+        peso = float(request.args.get("peso") or 0)
+        horas = float(request.args.get("horas") or 0)
+        fid = request.args.get("filamento_id")
+        costo = 0.0
+        if fid:
+            fil = Filamento.query.get(int(fid))
+            if fil:
+                costo = round(peso * fil.precio_por_gramo, 2)
+        return jsonify({"ok": True, "costo_filamento": costo,
+                        "precio_sugerido": cotizar_precio(costo, horas),
+                        "tarifa_hora": COTIZADOR["tarifa_hora"],
+                        "margen": COTIZADOR["margen"]})
+
+    @app.route("/api/v1/dashboard")
+    def api_dashboard():
+        if not _api_key_ok():
+            return jsonify({"ok": False, "error": "API key inválida."}), 401
+        hoy = date.today()
+        proyectos = Proyecto.query.all()
+        activos = [p for p in proyectos if not p.cerrado]
+        entregados_mes = [p for p in proyectos if p.estado == "Entregado"
+                          and p.fecha_entregado and p.fecha_entregado.year == hoy.year
+                          and p.fecha_entregado.month == hoy.month]
+        ingreso_mes = sum(p.ingreso_reconocido for p in entregados_mes)
+        por_estado = {}
+        for p in activos:
+            por_estado[p.estado] = por_estado.get(p.estado, 0) + 1
+        return jsonify({"ok": True,
+                        "activos": len(activos),
+                        "en_espera": sum(1 for p in activos if p.estado == "En espera"),
+                        "urgentes": sum(1 for p in activos if p.es_urgente),
+                        "entregados_mes": len(entregados_mes),
+                        "ingreso_mes": round(ingreso_mes, 2),
+                        "por_estado": por_estado})
+
+    def _impresora_a_json(m):
+        return {"id": m.id, "nombre": m.nombre,
+                "horas_totales": round(m.horas_totales or 0, 1),
+                "horas_desde_mant": m.horas_desde_mant,
+                "intervalo_mant_h": m.intervalo_mant_h or 0,
+                "necesita_mant": m.necesita_mant, "nota": m.nota or ""}
+
+    @app.route("/api/v1/impresoras")
+    def api_impresoras():
+        if not _api_key_ok():
+            return jsonify({"ok": False, "error": "API key inválida."}), 401
+        ms = Impresora.query.filter_by(activa=True).order_by(Impresora.nombre).all()
+        return jsonify({"ok": True, "impresoras": [_impresora_a_json(m) for m in ms]})
+
+    @app.route("/api/v1/impresoras", methods=["POST"])
+    def api_crear_impresora():
+        if not _api_key_ok():
+            return jsonify({"ok": False, "error": "API key inválida."}), 401
+        d = request.get_json(silent=True) or request.form
+        nombre = (d.get("nombre") or "").strip()
+        if not nombre:
+            return jsonify({"ok": False, "error": "El nombre es obligatorio."}), 400
+        m = Impresora(nombre=nombre,
+                      horas_totales=float(d.get("horas_totales") or 0),
+                      intervalo_mant_h=float(d.get("intervalo_mant_h") or 250))
+        db.session.add(m)
+        db.session.commit()
+        return jsonify({"ok": True, "impresora": _impresora_a_json(m)})
+
+    @app.route("/api/v1/impresoras/<int:mid>/horas", methods=["POST", "PATCH"])
+    def api_sumar_horas(mid):
+        if not _api_key_ok():
+            return jsonify({"ok": False, "error": "API key inválida."}), 401
+        m = Impresora.query.get_or_404(mid)
+        d = request.get_json(silent=True) or request.form
+        m.horas_totales = (m.horas_totales or 0) + float(d.get("horas") or 0)
+        db.session.commit()
+        return jsonify({"ok": True, "impresora": _impresora_a_json(m)})
+
+    @app.route("/api/v1/impresoras/<int:mid>/mantenimiento", methods=["POST"])
+    def api_mantenimiento(mid):
+        if not _api_key_ok():
+            return jsonify({"ok": False, "error": "API key inválida."}), 401
+        m = Impresora.query.get_or_404(mid)
+        m.horas_ultimo_mant = m.horas_totales or 0
+        db.session.commit()
+        return jsonify({"ok": True, "impresora": _impresora_a_json(m)})
 
     # ======================================================================
     #  Ferias y Eventos (POS móvil) — API REST v1
@@ -1244,8 +1648,23 @@ def registrar_rutas(app):
     @app.route("/proyectos")
     @login_required
     def proyectos():
-        lista = Proyecto.query.order_by(Proyecto.creado.desc()).all()
+        lista = Proyecto.query.all()
+        # Pendientes primero (cola de diseño arriba), cerrados al fondo.
+        orden_estado = {e: i for i, e in enumerate(Proyecto.ESTADOS)}
+        lista.sort(key=lambda p: (p.cerrado, orden_estado.get(p.estado, 99),
+                                  p.fecha_entrega or date.max, -(p.id or 0)))
+        # Cola de "En espera" (esperando respuesta de diseño) destacada aparte.
+        en_espera = [p for p in lista if p.estado == "En espera"]
+        # Deuda interna entre socios (cobrados y no saldados).
+        deuda = {}
+        for p in lista:
+            if p.deuda_interna_pendiente:
+                e = deuda.setdefault(p.cobrador_id, {"nombre": p.cobrador.nombre,
+                                                     "monto": 0.0, "count": 0})
+                e["monto"] += p.parte_socio
+                e["count"] += 1
         return render_template("proyectos.html", proyectos=lista,
+                               en_espera=en_espera, deuda=list(deuda.values()),
                                filamentos=Filamento.query.all(),
                                usuarios=User.query.all(),
                                estados=Proyecto.ESTADOS)
@@ -1254,10 +1673,12 @@ def registrar_rutas(app):
     @login_required
     def nuevo_proyecto():
         f = request.form
+        cid = f.get("cobrador_id")
         p = Proyecto(
             nombre=f.get("nombre", "").strip(),
             cliente=f.get("cliente", "").strip(),
-            estado=f.get("estado") or "Diseñando",
+            telefono=f.get("telefono", "").strip(),
+            estado=f.get("estado") or "En espera",
             peso_g=float(f.get("peso_g") or 0),
             tiempo_estimado_h=float(f.get("tiempo_estimado_h") or 0),
             horas_impresion=float(f.get("horas_impresion") or 0),
@@ -1265,7 +1686,9 @@ def registrar_rutas(app):
             fecha_entrega=_parse_fecha_opt(f.get("fecha_entrega")),
             precio_total=float(f.get("precio_total") or 0),
             adelanto=float(f.get("adelanto") or 0),
-            usuario_id=current_user.id,  # registra automáticamente al usuario autenticado
+            # quién COBRA se elige (opcional); quién REGISTRA es el usuario logueado
+            cobrador_id=int(cid) if cid not in (None, "", "0") else None,
+            usuario_id=current_user.id,
         )
         if not p.nombre:
             flash("El nombre del proyecto es obligatorio.", "error")
@@ -1284,9 +1707,23 @@ def registrar_rutas(app):
         p = Proyecto.query.get_or_404(pid)
         nuevo = request.form.get("estado")
         if nuevo in Proyecto.ESTADOS:
+            if nuevo == "Imprimiendo" and p.estado != "Imprimiendo":
+                p.inicio_impresion = datetime.utcnow()
+            if nuevo == "Entregado" and p.estado != "Entregado":
+                p.fecha_entregado = datetime.utcnow()
             p.estado = nuevo
             db.session.commit()
         return redirect(url_for("proyectos"))
+
+    @app.route("/proyectos/<int:pid>/saldar", methods=["POST"])
+    @login_required
+    def saldar_proyecto(pid):
+        """Marca/desmarca que el cobrador ya pasó su parte al otro socio."""
+        p = Proyecto.query.get_or_404(pid)
+        p.saldado = not p.saldado
+        p.fecha_saldado = datetime.utcnow() if p.saldado else None
+        db.session.commit()
+        return redirect(request.referrer or url_for("proyectos"))
 
     @app.route("/proyectos/<int:pid>/editar", methods=["GET", "POST"])
     @login_required
@@ -1305,7 +1742,9 @@ def registrar_rutas(app):
             p.fecha_entrega = _parse_fecha_opt(f.get("fecha_entrega"))
             p.precio_total = float(f.get("precio_total") or 0)
             p.adelanto = float(f.get("adelanto") or 0)
+            p.telefono = f.get("telefono", "").strip()
             p.usuario_id = int(f["usuario_id"]) if f.get("usuario_id") else None
+            p.cobrador_id = int(f["cobrador_id"]) if f.get("cobrador_id") else None
 
             # ¿Subió un archivo nuevo? -> reparsear, borrar el viejo y guardar el nuevo
             nuevo = request.files.get("gcode_file")
@@ -1372,6 +1811,114 @@ def registrar_rutas(app):
         db.session.delete(p)
         db.session.commit()
         return redirect(url_for("proyectos"))
+
+    # ---------- Calendario de entregas ----------
+    @app.route("/calendario")
+    @login_required
+    def calendario():
+        import calendar as _cal
+        hoy = date.today()
+        try:
+            anio = int(request.args.get("anio") or hoy.year)
+            mes = int(request.args.get("mes") or hoy.month)
+        except ValueError:
+            anio, mes = hoy.year, hoy.month
+        pedidos = Proyecto.query.filter(
+            Proyecto.fecha_entrega.isnot(None),
+            Proyecto.estado != "Cancelado",
+            extract("year", Proyecto.fecha_entrega) == anio,
+            extract("month", Proyecto.fecha_entrega) == mes,
+        ).all()
+        por_dia = {}
+        for p in pedidos:
+            por_dia.setdefault(p.fecha_entrega.day, []).append(p)
+        _cal.setfirstweekday(0)   # lunes
+        semanas = _cal.monthcalendar(anio, mes)
+        # Navegación de mes anterior/siguiente
+        prev = (anio - 1, 12) if mes == 1 else (anio, mes - 1)
+        sig = (anio + 1, 1) if mes == 12 else (anio, mes + 1)
+        return render_template("calendario.html", anio=anio, mes=mes,
+                               mes_nombre=MESES[mes], semanas=semanas,
+                               por_dia=por_dia, hoy=hoy,
+                               prev=prev, sig=sig, meses=MESES)
+
+    # ---------- Ficha de cliente ----------
+    @app.route("/cliente/<path:nombre>")
+    @login_required
+    def ficha_cliente(nombre):
+        pedidos = Proyecto.query.filter(
+            db.func.lower(Proyecto.cliente) == nombre.strip().lower()
+        ).order_by(Proyecto.creado.desc()).all()
+        total = sum(p.ingreso_reconocido for p in pedidos)
+        telefono = next((p.telefono for p in pedidos if p.telefono), "")
+        return render_template("cliente.html", nombre=nombre, pedidos=pedidos,
+                               total=total, telefono=telefono)
+
+    # ---------- Comprobante / recibo del pedido ----------
+    @app.route("/pedido/<int:pid>/recibo")
+    @login_required
+    def recibo_pedido(pid):
+        p = Proyecto.query.get_or_404(pid)
+        return render_template("recibo.html", p=p, hoy=date.today())
+
+    # ---------- Seguimiento público (sin login) ----------
+    @app.route("/seguir/<token>")
+    def seguir_pedido(token):
+        p = Proyecto.query.filter_by(public_token=token).first_or_404()
+        # Pasos del flujo para la barra de progreso (sin estados terminales raros).
+        pasos = ["En espera", "Diseñando", "Por imprimir", "Imprimiendo",
+                 "Terminado", "Entregado"]
+        try:
+            idx = pasos.index(p.estado)
+        except ValueError:
+            idx = -1
+        return render_template("seguimiento.html", p=p, pasos=pasos, idx=idx)
+
+    # ---------- Impresoras (mantenimiento) ----------
+    @app.route("/impresoras")
+    @login_required
+    def impresoras():
+        ms = Impresora.query.order_by(Impresora.nombre).all()
+        return render_template("impresoras.html", impresoras=ms)
+
+    @app.route("/impresoras/nueva", methods=["POST"])
+    @login_required
+    def nueva_impresora():
+        f = request.form
+        nombre = (f.get("nombre") or "").strip()
+        if nombre:
+            db.session.add(Impresora(
+                nombre=nombre,
+                horas_totales=float(f.get("horas_totales") or 0),
+                intervalo_mant_h=float(f.get("intervalo_mant_h") or 250),
+                nota=(f.get("nota") or "").strip()))
+            db.session.commit()
+            flash("Impresora agregada.", "ok")
+        return redirect(url_for("impresoras"))
+
+    @app.route("/impresoras/<int:mid>/horas", methods=["POST"])
+    @login_required
+    def sumar_horas_impresora(mid):
+        m = Impresora.query.get_or_404(mid)
+        m.horas_totales = (m.horas_totales or 0) + float(request.form.get("horas") or 0)
+        db.session.commit()
+        return redirect(url_for("impresoras"))
+
+    @app.route("/impresoras/<int:mid>/mantenimiento", methods=["POST"])
+    @login_required
+    def mantenimiento_impresora(mid):
+        m = Impresora.query.get_or_404(mid)
+        m.horas_ultimo_mant = m.horas_totales or 0
+        db.session.commit()
+        flash(f"Mantenimiento de «{m.nombre}» registrado.", "ok")
+        return redirect(url_for("impresoras"))
+
+    @app.route("/impresoras/<int:mid>/eliminar", methods=["POST"])
+    @login_required
+    def eliminar_impresora(mid):
+        db.session.delete(Impresora.query.get_or_404(mid))
+        db.session.commit()
+        return redirect(url_for("impresoras"))
 
     # ---------- Filamentos ----------
     @app.route("/filamentos")

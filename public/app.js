@@ -1,15 +1,22 @@
 /* App de Producción (frontend Vercel) — consume la API REST del backend Flask. */
 const API = window.APP_CONFIG.API_BASE_URL;
 const API_KEY = window.APP_CONFIG.API_KEY;
-const ESTADOS = ["Diseñando", "Por imprimir", "Imprimiendo", "Terminado", "Entregado"];
+const ESTADOS = ["En espera", "Diseñando", "Por imprimir", "Imprimiendo",
+                "Terminado", "Entregado", "Cancelado"];
 
 const ESTADO_BADGE = {
+  "En espera": "bg-amber-500/15 text-amber-300 border-amber-500/30",
   "Diseñando": "bg-slate-500/15 text-slate-300 border-slate-500/30",
   "Por imprimir": "bg-indigo-500/15 text-indigo-300 border-indigo-500/30",
   "Imprimiendo": "bg-cyan-500/15 text-cyan-300 border-cyan-500/30",
   "Terminado": "bg-teal-500/15 text-teal-300 border-teal-500/30",
   "Entregado": "bg-green-500/15 text-green-300 border-green-500/30",
+  "Cancelado": "bg-rose-500/15 text-rose-400 border-rose-500/30",
 };
+
+// Cache de socios (para selects de cobrador / gasto).
+let SOCIOS = [];
+let PEDIDOS = [];   // último set cargado (para filtrar sin re-pedir)
 
 function headers(json) {
   const h = {};
@@ -24,7 +31,7 @@ function esc(s) {
 function pad(n) { return String(n).padStart(2, "0"); }
 
 // ---- Navegación entre pestañas ----
-const SECCIONES = ["pedidos", "filamentos", "ferias"];
+const SECCIONES = ["pedidos", "calendario", "filamentos", "ferias", "mas"];
 function mostrar(sec) {
   SECCIONES.forEach((s) => {
     const activa = s === sec;
@@ -33,6 +40,8 @@ function mostrar(sec) {
       "py-3 flex flex-col items-center gap-0.5 " + (activa ? "text-teal-300" : "text-slate-500");
   });
   if (sec === "ferias") cargarFerias();
+  if (sec === "calendario") cargarCalendario();
+  if (sec === "mas") document.getElementById("mas-contenido").innerHTML = "";
   window.scrollTo({ top: 0 });
 }
 
@@ -135,6 +144,7 @@ function tarjetaPedido(p) {
         ${printMon}
       </div>
     </div>
+    ${bloqueCobro(p)}
     <div class="border-t border-edge bg-base/40 px-3 py-2 flex items-center gap-2">
       <button onclick="cambiarEstado(${p.id},'Terminado',this)" class="flex-1 py-2 rounded-lg text-sm font-semibold text-slate-900 bg-gradient-to-r from-teal-500 to-cyan-500 active:opacity-80 transition">✅ Listo</button>
       <button onclick="cambiarEstado(${p.id},'Entregado',this)" class="flex-1 py-2 rounded-lg text-sm font-semibold text-slate-900 bg-gradient-to-r from-green-500 to-emerald-500 active:opacity-80 transition">📦 Entregado</button>
@@ -147,6 +157,45 @@ function tarjetaPedido(p) {
     <input type="file" accept="image/*" capture="environment" class="hidden"
            id="cam-${p.id}" onchange="subirFoto(${p.id}, this)">
   </article>`;
+}
+
+// ---- Bloque de cobro / dinero / WhatsApp de una tarjeta ----
+function bloqueCobro(p) {
+  const opcSocios = ['<option value="">¿Quién cobra?</option>']
+    .concat(SOCIOS.map((u) =>
+      `<option value="${u.id}" ${p.cobrador && p.cobrador.id === u.id ? "selected" : ""}>${esc(u.nombre)}</option>`))
+    .join("");
+
+  // Estado del saldo del cliente
+  const saldoTxt = p.pagado_completo
+    ? `<span class="px-2 py-0.5 rounded-md bg-teal-500/10 text-teal-300 border border-teal-500/30">✓ Pagado</span>`
+    : (p.saldo_pendiente > 0
+        ? `<span class="px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-300 border border-amber-500/30">Debe ${money(p.saldo_pendiente)}</span>`
+        : "");
+
+  // Botón de deuda interna: "me pagó / saldado"
+  let saldar = "";
+  if (p.cobrador && (p.precio_total || 0) > 0) {
+    saldar = p.saldado
+      ? `<button onclick="saldarPedido(${p.id},false)" class="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">✔ ${esc(p.cobrador.nombre)} me pagó</button>`
+      : `<button onclick="saldarPedido(${p.id},true)" class="px-2 py-0.5 rounded-md bg-fuchsia-500/15 text-fuchsia-300 border border-fuchsia-500/30">💵 ${esc(p.cobrador.nombre)} me pagó</button>`;
+  }
+
+  // WhatsApp: avisar al cliente
+  const wa = p.telefono
+    ? `<button onclick="avisarWhatsApp(${p.id})" class="px-2 py-0.5 rounded-md bg-green-500/15 text-green-300 border border-green-500/30">📲 Avisar</button>`
+    : "";
+
+  const ganancia = (p.precio_total || 0) > 0
+    ? `<span class="text-slate-500">📈 ${money(p.ganancia)}</span>` : "";
+
+  return `<div class="px-3 pb-2 flex flex-wrap items-center gap-1.5 text-[11px]">
+    <span class="font-semibold text-slate-300">💰 ${money(p.precio_total)}</span>
+    ${saldoTxt}${ganancia}
+    <select onchange="setCobrador(${p.id}, this.value)"
+            class="ml-auto py-1 px-1.5 rounded-md bg-card border border-edge text-slate-300 text-[11px]">${opcSocios}</select>
+    ${saldar}${wa}
+  </div>`;
 }
 
 // ---- Captura y subida de foto desde la cámara del celular ----
@@ -220,15 +269,19 @@ async function cambiarEstado(pid, estado, ctrl) {
     const data = await r.json();
     if (!data.ok) { toast(data.error || "No se pudo actualizar.", true); return; }
 
-    const card = document.getElementById("card-" + pid);
-    const badge = card && card.querySelector("[data-badge]");
     const nuevo = data.pedido.estado;
-    if (badge) { badge.textContent = nuevo; badge.className = "text-[11px] px-2 py-0.5 rounded-md border whitespace-nowrap " + (ESTADO_BADGE[nuevo] || ""); }
     toast(`«${data.pedido.nombre}» → ${nuevo}`);
 
-    if (card && !data.activo) {                 // salió de producción (Entregado)
-      card.classList.add("fade-out");
-      setTimeout(() => { card.remove(); ajustarConteo(); }, 420);
+    // Entregado/Cancelado: en vez de borrar la tarjeta, recargamos para que
+    // se reordene al fondo y los pendientes suban.
+    if (!data.activo) {
+      const card = document.getElementById("card-" + pid);
+      if (card) card.classList.add("fade-out");
+      setTimeout(cargarPedidos, 300);
+    } else {
+      const card = document.getElementById("card-" + pid);
+      const badge = card && card.querySelector("[data-badge]");
+      if (badge) { badge.textContent = nuevo; badge.className = "text-[11px] px-2 py-0.5 rounded-md border whitespace-nowrap " + (ESTADO_BADGE[nuevo] || ""); }
     }
   } catch (e) {
     toast("Error de red. Revisa la conexión con el backend.", true);
@@ -270,6 +323,11 @@ function actualizarTimers() {
       if (diff < 3 * H) { clases = "bg-rose-500/15 text-rose-300 border-rose-500/40 alerta-roja"; ic = "🔥"; }
       else if (diff < 12 * H) { clases = "bg-orange-500/15 text-orange-300 border-orange-500/40"; ic = "⚠️"; }
       else { clases = "bg-green-500/15 text-green-300 border-green-500/40"; ic = "⏳"; }
+      // Recordatorio: avisa una vez cuando falta menos de 24 h para la entrega.
+      if (diff < 24 * H) {
+        notificarUnaVez("prox-" + el.dataset.nombre, "📅 Entrega mañana",
+                        `«${el.dataset.nombre}» se entrega en menos de 24 h.`);
+      }
     }
     rem.textContent = txt;
     if (icon) icon.textContent = ic;
@@ -302,20 +360,78 @@ function actualizarTimers() {
 async function cargarPedidos() {
   const cont = document.getElementById("lista-pedidos");
   try {
+    if (!SOCIOS.length) await cargarSocios();
     const r = await fetch(`${API}/api/v1/pedidos-activos`, { headers: headers() });
     const data = await r.json();
     if (!data.ok) throw new Error(data.error || "Error");
+    PEDIDOS = data.pedidos;
     document.getElementById("conteo-pedidos").textContent = data.count;
-    cont.innerHTML = data.pedidos.length
-      ? data.pedidos.map(tarjetaPedido).join("")
-      : `<div class="bg-card border border-dashed border-edge rounded-2xl p-8 text-center text-slate-500">🎉 No hay pedidos pendientes en producción.</div>`;
-    actualizarTimers();
+    renderPedidos();
+    renderColaEspera();
+    cargarDeuda();
     return true;
   } catch (e) {
     cont.innerHTML = `<div class="bg-card border border-rose-500/30 rounded-2xl p-6 text-center text-rose-300 text-sm">
       ⚠️ No se pudo conectar con el backend.<br><span class="text-slate-500 text-xs">${esc(API)}</span></div>`;
     return false;
   }
+}
+
+// Pinta la lista aplicando el buscador y el filtro de estado.
+function renderPedidos() {
+  const cont = document.getElementById("lista-pedidos");
+  const q = (document.getElementById("buscar-pedido")?.value || "").trim().toLowerCase();
+  const est = document.getElementById("filtro-estado")?.value || "";
+  let lista = PEDIDOS;
+  // Los "En espera" se muestran en la cola de arriba: no duplicarlos aquí
+  // (salvo que el usuario filtre explícitamente por ese estado).
+  if (est !== "En espera") lista = lista.filter((p) => p.estado !== "En espera");
+  if (q) lista = lista.filter((p) =>
+    (p.nombre || "").toLowerCase().includes(q) || (p.cliente || "").toLowerCase().includes(q));
+  if (est) lista = lista.filter((p) => p.estado === est);
+  cont.innerHTML = lista.length
+    ? lista.map(tarjetaPedido).join("")
+    : `<div class="bg-card border border-dashed border-edge rounded-2xl p-8 text-center text-slate-500">🎉 Nada por aquí.</div>`;
+  actualizarTimers();
+}
+function filtrarPedidos() { renderPedidos(); }
+
+// Cola de "En espera": clientes esperando respuesta de diseño.
+function renderColaEspera() {
+  const box = document.getElementById("cola-espera");
+  const cola = PEDIDOS.filter((p) => p.estado === "En espera");
+  if (!cola.length) { box.classList.add("hidden"); box.innerHTML = ""; return; }
+  box.classList.remove("hidden");
+  box.innerHTML = `<div class="bg-amber-500/5 border border-amber-500/30 rounded-2xl p-3">
+    <p class="text-sm font-semibold text-amber-300 mb-2">🎨 Esperando respuesta de diseño (${cola.length})</p>
+    <div class="space-y-1.5">${cola.map((p) => `
+      <div class="flex items-center gap-2 text-xs">
+        <span class="flex-1 truncate text-slate-200">${esc(p.nombre)} <span class="text-slate-500">· ${esc(p.cliente || "sin cliente")}</span></span>
+        <button onclick="cambiarEstado(${p.id},'Diseñando',this)" class="px-2 py-1 rounded-md bg-teal-500/15 text-teal-300 border border-teal-500/30">▶ Diseñar</button>
+      </div>`).join("")}</div></div>`;
+}
+
+// Banner de deuda interna entre socios.
+async function cargarDeuda() {
+  const box = document.getElementById("banner-deuda");
+  try {
+    const r = await fetch(`${API}/api/v1/resumen-deuda`, { headers: headers() });
+    const d = await r.json();
+    if (!d.ok || !d.detalle.length) { box.classList.add("hidden"); box.innerHTML = ""; return; }
+    box.classList.remove("hidden");
+    box.innerHTML = `<div class="bg-fuchsia-500/5 border border-fuchsia-500/30 rounded-2xl p-3 text-sm">
+      <p class="font-semibold text-fuchsia-300 mb-1">💸 Deuda entre socios</p>
+      ${d.detalle.map((x) => `<p class="text-slate-300 text-xs"><b>${esc(x.cobrador)}</b> te debe <b class="text-fuchsia-300">${money(x.debe)}</b> <span class="text-slate-500">(${x.pedidos} pedido${x.pedidos !== 1 ? "s" : ""})</span></p>`).join("")}
+    </div>`;
+  } catch (e) { box.classList.add("hidden"); }
+}
+
+async function cargarSocios() {
+  try {
+    const r = await fetch(`${API}/api/v1/usuarios`, { headers: headers() });
+    const d = await r.json();
+    if (d.ok) SOCIOS = d.usuarios;
+  } catch (e) { /* sin socios: los selects quedan vacíos */ }
 }
 
 async function cargarFilamentos() {
@@ -792,6 +908,337 @@ async function confirmarCierre(btn) {
   } catch (e) { toast("Error de red.", true); }
   finally { btn.disabled = false; }
 }
+
+// ==========================================================================
+//  COBRO, DEUDA Y WHATSAPP (por pedido)
+// ==========================================================================
+async function setCobrador(pid, cobradorId) {
+  try {
+    const r = await fetch(`${API}/api/v1/pedidos/${pid}/cobrador`, {
+      method: "PATCH", headers: headers(true),
+      body: JSON.stringify({ cobrador_id: cobradorId || null }) });
+    const d = await r.json();
+    if (!d.ok) { toast(d.error || "No se pudo.", true); return; }
+    actualizarPedidoLocal(d.pedido);
+    toast(cobradorId ? "Cobrador asignado." : "Cobro sin asignar.");
+  } catch (e) { toast("Error de red.", true); }
+}
+
+async function saldarPedido(pid, valor) {
+  try {
+    const r = await fetch(`${API}/api/v1/pedidos/${pid}/saldar`, {
+      method: "PATCH", headers: headers(true), body: JSON.stringify({ saldado: valor }) });
+    const d = await r.json();
+    if (!d.ok) { toast(d.error || "No se pudo.", true); return; }
+    actualizarPedidoLocal(d.pedido);
+    cargarDeuda();
+    toast(valor ? "✔ Marcado como saldado." : "Deuda reactivada.");
+  } catch (e) { toast("Error de red.", true); }
+}
+
+// Reemplaza un pedido en el cache y repinta sin recargar todo.
+function actualizarPedidoLocal(pedido) {
+  const i = PEDIDOS.findIndex((p) => p.id === pedido.id);
+  if (i >= 0) PEDIDOS[i] = pedido;
+  renderPedidos();
+}
+
+function avisarWhatsApp(pid) {
+  const p = PEDIDOS.find((x) => x.id === pid);
+  if (!p || !p.telefono) return;
+  const tel = p.telefono.replace(/[^0-9]/g, "");
+  let msg;
+  if (p.estado === "Terminado") msg = `¡Hola! Tu pedido «${p.nombre}» ya está listo para recoger 🎉`;
+  else if (p.estado === "Entregado") msg = `¡Hola! Gracias por tu compra de «${p.nombre}» 🙌`;
+  else msg = `¡Hola! Te escribo por tu pedido «${p.nombre}». `;
+  if (p.saldo_pendiente > 0) msg += ` Saldo pendiente: ${money(p.saldo_pendiente)}.`;
+  window.open(`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`, "_blank");
+}
+
+// ==========================================================================
+//  NUEVO PEDIDO (con cotizador automático)
+// ==========================================================================
+let FILAMENTOS = [];
+async function abrirNuevoPedido() {
+  if (!SOCIOS.length) await cargarSocios();
+  try {
+    const r = await fetch(`${API}/api/v1/filamentos-stock`, { headers: headers() });
+    const d = await r.json();
+    FILAMENTOS = d.ok ? d.filamentos : [];
+  } catch (e) { FILAMENTOS = []; }
+
+  const optEstados = ESTADOS.map((e) => `<option ${e === "En espera" ? "selected" : ""}>${e}</option>`).join("");
+  const optSocios = ['<option value="">¿Quién cobra? (opcional)</option>']
+    .concat(SOCIOS.map((u) => `<option value="${u.id}">${esc(u.nombre)}</option>`)).join("");
+  const optFil = ['<option value="">— Filamento —</option>']
+    .concat(FILAMENTOS.map((f) => `<option value="${f.id}">${esc([f.material, f.color].filter(Boolean).join(" "))}</option>`)).join("");
+  const inp = "w-full bg-base border border-edge rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-600 outline-none focus:border-teal-400";
+
+  abrirModal("Nuevo pedido", `
+    <input id="np-nombre" placeholder="Nombre de la pieza *" class="${inp}">
+    <div class="grid grid-cols-2 gap-2">
+      <input id="np-cliente" placeholder="Cliente" class="${inp}">
+      <input id="np-telefono" placeholder="WhatsApp (ej. 591…)" class="${inp}">
+    </div>
+    <div class="grid grid-cols-2 gap-2">
+      <input id="np-peso" type="number" step="0.1" placeholder="Peso (g)" class="${inp}" oninput="npCotizar()">
+      <input id="np-horas" type="number" step="0.1" placeholder="Horas" class="${inp}" oninput="npCotizar()">
+    </div>
+    <select id="np-filamento" class="${inp}" onchange="npCotizar()">${optFil}</select>
+    <div class="grid grid-cols-2 gap-2">
+      <input id="np-precio" type="number" step="0.01" placeholder="Precio (Bs.)" class="${inp}">
+      <input id="np-adelanto" type="number" step="0.01" placeholder="Adelanto (Bs.)" class="${inp}">
+    </div>
+    <button type="button" onclick="npAplicarSugerido()" id="np-sugerido"
+            class="w-full py-2 rounded-lg text-xs bg-cyan-500/10 text-cyan-300 border border-cyan-500/30">🧮 Sugerir precio</button>
+    <div class="grid grid-cols-2 gap-2">
+      <select id="np-estado" class="${inp}">${optEstados}</select>
+      <select id="np-cobrador" class="${inp}">${optSocios}</select>
+    </div>
+    <label class="text-xs text-slate-500 block">Fecha de entrega
+      <input id="np-fecha" type="date" class="${inp}"></label>
+    <button onclick="guardarNuevoPedido(this)" class="w-full py-3 rounded-xl font-semibold text-slate-900 bg-gradient-to-r from-teal-500 to-cyan-500">Guardar pedido</button>
+  `);
+}
+
+let npSug = 0;
+async function npCotizar() {
+  const peso = document.getElementById("np-peso")?.value || 0;
+  const horas = document.getElementById("np-horas")?.value || 0;
+  const fid = document.getElementById("np-filamento")?.value || "";
+  if (!peso && !horas) return;
+  try {
+    const r = await fetch(`${API}/api/v1/cotizar?peso=${peso}&horas=${horas}&filamento_id=${fid}`, { headers: headers() });
+    const d = await r.json();
+    if (d.ok) {
+      npSug = d.precio_sugerido;
+      const b = document.getElementById("np-sugerido");
+      if (b) b.textContent = `🧮 Sugerido: ${money(d.precio_sugerido)} (toca para usar)`;
+    }
+  } catch (e) { /* ignora */ }
+}
+function npAplicarSugerido() {
+  if (npSug) document.getElementById("np-precio").value = npSug;
+}
+
+async function guardarNuevoPedido(btn) {
+  const nombre = document.getElementById("np-nombre").value.trim();
+  if (!nombre) { toast("El nombre es obligatorio.", true); return; }
+  btn.disabled = true;
+  const body = {
+    nombre,
+    cliente: document.getElementById("np-cliente").value.trim(),
+    telefono: document.getElementById("np-telefono").value.trim(),
+    peso_g: document.getElementById("np-peso").value || 0,
+    tiempo_estimado_h: document.getElementById("np-horas").value || 0,
+    filamento_id: document.getElementById("np-filamento").value || null,
+    precio_total: document.getElementById("np-precio").value || 0,
+    adelanto: document.getElementById("np-adelanto").value || 0,
+    estado: document.getElementById("np-estado").value,
+    cobrador_id: document.getElementById("np-cobrador").value || null,
+    fecha_entrega: document.getElementById("np-fecha").value || null,
+  };
+  try {
+    const r = await fetch(`${API}/api/v1/pedidos`, { method: "POST", headers: headers(true), body: JSON.stringify(body) });
+    const d = await r.json();
+    if (!d.ok) { toast(d.error || "No se pudo crear.", true); btn.disabled = false; return; }
+    cerrarModal();
+    toast("✅ Pedido creado.");
+    cargarPedidos();
+  } catch (e) { toast("Error de red.", true); btn.disabled = false; }
+}
+
+// ==========================================================================
+//  GASTO RÁPIDO
+// ==========================================================================
+async function abrirGastoRapido() {
+  if (!SOCIOS.length) await cargarSocios();
+  const cats = ["Filamento", "Resina", "Cajas/Empaque", "Envíos", "Luz/Servicios", "Repuestos", "Herramientas", "Otro"];
+  const inp = "w-full bg-base border border-edge rounded-lg px-3 py-2 text-sm text-slate-100 outline-none focus:border-teal-400";
+  abrirModal("Gasto rápido", `
+    <input id="g-monto" type="number" step="0.01" placeholder="Monto (Bs.) *" class="${inp}">
+    <input id="g-desc" placeholder="Descripción" class="${inp}">
+    <div class="grid grid-cols-2 gap-2">
+      <select id="g-cat" class="${inp}">${cats.map((c) => `<option>${c}</option>`).join("")}</select>
+      <select id="g-quien" class="${inp}"><option value="">¿Quién pagó?</option>${SOCIOS.map((u) => `<option value="${u.id}">${esc(u.nombre)}</option>`).join("")}</select>
+    </div>
+    <button onclick="guardarGasto(this)" class="w-full py-3 rounded-xl font-semibold text-slate-900 bg-gradient-to-r from-amber-500 to-orange-500">Registrar gasto</button>
+  `);
+}
+async function guardarGasto(btn) {
+  const monto = parseFloat(document.getElementById("g-monto").value || 0);
+  if (monto <= 0) { toast("Monto inválido.", true); return; }
+  btn.disabled = true;
+  try {
+    const r = await fetch(`${API}/api/v1/gastos`, { method: "POST", headers: headers(true),
+      body: JSON.stringify({ monto, descripcion: document.getElementById("g-desc").value.trim(),
+        categoria: document.getElementById("g-cat").value, usuario_id: document.getElementById("g-quien").value || null }) });
+    const d = await r.json();
+    if (!d.ok) { toast(d.error || "No se pudo.", true); btn.disabled = false; return; }
+    cerrarModal(); toast("💸 Gasto registrado.");
+  } catch (e) { toast("Error de red.", true); btn.disabled = false; }
+}
+
+// ==========================================================================
+//  CLIENTES · IMPRESORAS · RESUMEN (sección "Más")
+// ==========================================================================
+async function abrirClientes() {
+  const box = document.getElementById("mas-contenido");
+  box.innerHTML = `<div class="skeleton h-24 rounded-2xl"></div>`;
+  try {
+    const r = await fetch(`${API}/api/v1/clientes`, { headers: headers() });
+    const d = await r.json();
+    box.innerHTML = `<h2 class="text-sm font-semibold text-slate-300">👥 Clientes (${d.clientes.length})</h2>` +
+      (d.clientes.length ? d.clientes.map((c) => `
+      <div class="bg-card border border-edge rounded-2xl p-3 flex items-center gap-3">
+        <div class="min-w-0 flex-1">
+          <p class="font-semibold text-slate-100 truncate">${esc(c.cliente)}</p>
+          <p class="text-xs text-slate-500">${c.pedidos} pedido(s) · ${c.activos} activo(s) · gastó ${money(c.total_gastado)}</p>
+        </div>
+        ${c.telefono ? `<a href="https://wa.me/${c.telefono.replace(/[^0-9]/g, "")}" target="_blank" class="px-2.5 py-1.5 rounded-lg bg-green-500/15 text-green-300 border border-green-500/30 text-xs">📲</a>` : ""}
+      </div>`).join("") : `<p class="text-slate-500 text-sm">Aún no hay clientes con nombre.</p>`);
+  } catch (e) { box.innerHTML = `<p class="text-rose-300 text-sm">No se pudo cargar.</p>`; }
+}
+
+async function abrirImpresoras() {
+  const box = document.getElementById("mas-contenido");
+  box.innerHTML = `<div class="skeleton h-24 rounded-2xl"></div>`;
+  try {
+    const r = await fetch(`${API}/api/v1/impresoras`, { headers: headers() });
+    const d = await r.json();
+    box.innerHTML = `<div class="flex items-center justify-between">
+        <h2 class="text-sm font-semibold text-slate-300">🖨️ Impresoras</h2>
+        <button onclick="abrirNuevaImpresora()" class="text-xs px-2 py-1 rounded-lg bg-card border border-edge text-slate-300">＋ Nueva</button></div>` +
+      (d.impresoras.length ? d.impresoras.map((m) => `
+      <div class="bg-card border ${m.necesita_mant ? "border-amber-500/40" : "border-edge"} rounded-2xl p-3">
+        <div class="flex items-center justify-between">
+          <p class="font-semibold text-slate-100">${esc(m.nombre)}</p>
+          ${m.necesita_mant ? `<span class="text-[11px] px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-300 border border-amber-500/30">⚠️ Revisar boquilla</span>` : ""}
+        </div>
+        <p class="text-xs text-slate-500 mt-1">${m.horas_totales} h totales · ${m.horas_desde_mant} h desde el último mantenimiento (cada ${m.intervalo_mant_h} h)</p>
+        <div class="flex gap-2 mt-2">
+          <button onclick="sumarHoras(${m.id})" class="flex-1 py-1.5 rounded-lg text-xs bg-base border border-edge text-slate-300">＋ Horas</button>
+          <button onclick="hacerMantenimiento(${m.id})" class="flex-1 py-1.5 rounded-lg text-xs bg-teal-500/15 text-teal-300 border border-teal-500/30">🔧 Mantenimiento hecho</button>
+        </div>
+      </div>`).join("") : `<p class="text-slate-500 text-sm">Sin impresoras. Agrega una.</p>`);
+  } catch (e) { box.innerHTML = `<p class="text-rose-300 text-sm">No se pudo cargar.</p>`; }
+}
+function abrirNuevaImpresora() {
+  const inp = "w-full bg-base border border-edge rounded-lg px-3 py-2 text-sm text-slate-100 outline-none focus:border-teal-400";
+  abrirModal("Nueva impresora", `
+    <input id="im-nombre" placeholder="Nombre (ej. Bambu A1) *" class="${inp}">
+    <div class="grid grid-cols-2 gap-2">
+      <input id="im-horas" type="number" step="1" placeholder="Horas actuales" class="${inp}">
+      <input id="im-intervalo" type="number" step="1" placeholder="Mant. cada (h)" value="250" class="${inp}">
+    </div>
+    <button onclick="guardarImpresora(this)" class="w-full py-3 rounded-xl font-semibold text-slate-900 bg-gradient-to-r from-teal-500 to-cyan-500">Guardar</button>`);
+}
+async function guardarImpresora(btn) {
+  const nombre = document.getElementById("im-nombre").value.trim();
+  if (!nombre) { toast("Nombre obligatorio.", true); return; }
+  btn.disabled = true;
+  try {
+    const r = await fetch(`${API}/api/v1/impresoras`, { method: "POST", headers: headers(true),
+      body: JSON.stringify({ nombre,
+        horas_totales: document.getElementById("im-horas").value || 0,
+        intervalo_mant_h: document.getElementById("im-intervalo").value || 250 }) });
+    const d = await r.json();
+    if (!d.ok) { toast(d.error || "No se pudo.", true); btn.disabled = false; return; }
+    cerrarModal(); toast("🖨️ Impresora agregada."); abrirImpresoras();
+  } catch (e) { toast("Error de red.", true); btn.disabled = false; }
+}
+async function sumarHoras(mid) {
+  const h = prompt("¿Cuántas horas sumar?");
+  if (!h) return;
+  const r = await fetch(`${API}/api/v1/impresoras/${mid}/horas`, { method: "POST", headers: headers(true), body: JSON.stringify({ horas: parseFloat(h) || 0 }) });
+  if ((await r.json()).ok) { toast("Horas sumadas."); abrirImpresoras(); }
+}
+async function hacerMantenimiento(mid) {
+  const r = await fetch(`${API}/api/v1/impresoras/${mid}/mantenimiento`, { method: "POST", headers: headers(true) });
+  if ((await r.json()).ok) { toast("🔧 Mantenimiento registrado."); abrirImpresoras(); }
+}
+
+async function abrirDashboard() {
+  const box = document.getElementById("mas-contenido");
+  box.innerHTML = `<div class="skeleton h-24 rounded-2xl"></div>`;
+  try {
+    const r = await fetch(`${API}/api/v1/dashboard`, { headers: headers() });
+    const d = await r.json();
+    const tile = (t, v, c) => `<div class="bg-card border border-edge rounded-2xl p-3 text-center"><p class="text-[10px] text-slate-500 uppercase">${t}</p><p class="text-xl font-bold ${c}">${v}</p></div>`;
+    box.innerHTML = `<h2 class="text-sm font-semibold text-slate-300 mb-1">📊 Resumen</h2>
+      <div class="grid grid-cols-2 gap-2">
+        ${tile("Activos", d.activos, "text-slate-100")}
+        ${tile("Urgentes", d.urgentes, "text-rose-300")}
+        ${tile("En espera", d.en_espera, "text-amber-300")}
+        ${tile("Entregados (mes)", d.entregados_mes, "text-green-300")}
+      </div>
+      <div class="bg-card border border-teal-500/30 rounded-2xl p-3 text-center mt-2">
+        <p class="text-[10px] text-slate-500 uppercase">Ingreso reconocido este mes</p>
+        <p class="text-2xl font-bold text-teal-300">${money(d.ingreso_mes)}</p></div>`;
+  } catch (e) { box.innerHTML = `<p class="text-rose-300 text-sm">No se pudo cargar.</p>`; }
+}
+
+// ==========================================================================
+//  CALENDARIO (agenda mensual por fecha de entrega)
+// ==========================================================================
+const CAL_MESES = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+let calAnio, calMes;
+async function cargarCalendario() {
+  const hoy = new Date();
+  if (!calAnio) { calAnio = hoy.getFullYear(); calMes = hoy.getMonth() + 1; }
+  try {
+    const r = await fetch(`${API}/api/v1/pedidos-calendario?anio=${calAnio}&mes=${calMes}`, { headers: headers() });
+    const d = await r.json();
+    renderCalendario(d.dias || {});
+  } catch (e) { renderCalendario({}); }
+}
+function calMover(delta) {
+  calMes += delta;
+  if (calMes < 1) { calMes = 12; calAnio--; }
+  if (calMes > 12) { calMes = 1; calAnio++; }
+  document.getElementById("cal-detalle").innerHTML = "";
+  cargarCalendario();
+}
+function renderCalendario(dias) {
+  document.getElementById("cal-titulo").textContent = `${CAL_MESES[calMes]} ${calAnio}`;
+  const primero = new Date(calAnio, calMes - 1, 1);
+  const offset = (primero.getDay() + 6) % 7;   // lunes = 0
+  const nDias = new Date(calAnio, calMes, 0).getDate();
+  const hoy = new Date();
+  const esHoy = (dia) => hoy.getFullYear() === calAnio && hoy.getMonth() + 1 === calMes && hoy.getDate() === dia;
+  const dow = ["L", "M", "M", "J", "V", "S", "D"];
+  let html = dow.map((x) => `<div class="text-center text-[10px] text-slate-600 py-1">${x}</div>`).join("");
+  for (let i = 0; i < offset; i++) html += `<div></div>`;
+  for (let dia = 1; dia <= nDias; dia++) {
+    const iso = `${calAnio}-${String(calMes).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
+    const items = dias[iso] || [];
+    const urg = items.some((x) => x.urgente && !x.entregado);
+    const dot = items.length
+      ? `<span class="absolute bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full ${urg ? "bg-rose-400" : "bg-teal-400"}"></span>` : "";
+    html += `<button onclick='calDia(${JSON.stringify(iso)})' class="relative aspect-square rounded-lg text-xs flex items-center justify-center border ${esHoy(dia) ? "border-teal-400 text-teal-300" : "border-edge text-slate-300"} ${items.length ? "bg-card" : "bg-base/40"}">${dia}${dot}</button>`;
+  }
+  document.getElementById("cal-grid").innerHTML = html;
+  window._calDias = dias;
+}
+function calDia(iso) {
+  const items = (window._calDias || {})[iso] || [];
+  const box = document.getElementById("cal-detalle");
+  const f = new Date(iso + "T12:00:00");
+  box.innerHTML = `<h3 class="text-sm font-semibold text-slate-300">${f.getDate()} de ${CAL_MESES[calMes]}</h3>` +
+    (items.length ? items.map((x) => `
+      <div class="bg-card border border-edge rounded-xl p-2.5 flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full ${x.entregado ? "bg-green-400" : x.urgente ? "bg-rose-400" : "bg-teal-400"}"></span>
+        <span class="flex-1 truncate text-sm text-slate-200">${esc(x.nombre)} <span class="text-slate-500 text-xs">· ${esc(x.cliente || "")}</span></span>
+        <span class="text-[11px] text-slate-400">${esc(x.estado)}</span>
+      </div>`).join("") : `<p class="text-slate-500 text-sm">Sin entregas este día.</p>`);
+}
+
+// Llena el filtro de estado una vez.
+(function initFiltros() {
+  const sel = document.getElementById("filtro-estado");
+  if (sel) ESTADOS.forEach((e) => sel.insertAdjacentHTML("beforeend", `<option value="${e}">${e}</option>`));
+})();
 
 // Esqueleto inicial mientras carga
 document.getElementById("lista-pedidos").innerHTML =

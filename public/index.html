@@ -52,7 +52,53 @@
     <h1 class="text-lg font-bold text-slate-100">📦 Pedidos en producción</h1>
     <span id="conteo-pedidos" class="text-xs px-2 py-0.5 rounded-full bg-cardh border border-edge text-slate-400">—</span>
   </div>
+
+  <!-- Deuda interna entre socios (quién le debe a quién) -->
+  <div id="banner-deuda" class="hidden"></div>
+
+  <!-- Cola: esperando respuesta de diseño -->
+  <div id="cola-espera" class="hidden"></div>
+
+  <!-- Buscador + Nuevo pedido -->
+  <div class="flex items-center gap-2">
+    <input id="buscar-pedido" oninput="filtrarPedidos()" placeholder="🔎 Buscar cliente o pieza…"
+           class="flex-1 bg-card border border-edge rounded-xl px-3 py-2 text-sm text-slate-100 placeholder-slate-600 focus:border-teal-400 outline-none">
+    <select id="filtro-estado" onchange="filtrarPedidos()"
+            class="bg-card border border-edge rounded-xl px-2 py-2 text-xs text-slate-300">
+      <option value="">Todos</option>
+    </select>
+    <button onclick="abrirNuevoPedido()" title="Nuevo pedido"
+            class="px-3 py-2 rounded-xl text-sm font-semibold text-slate-900 bg-gradient-to-r from-teal-500 to-cyan-500 active:opacity-80">＋</button>
+  </div>
+
   <div id="lista-pedidos" class="space-y-4"></div>
+</section>
+
+<!-- ============ SECCIÓN: CALENDARIO ============ -->
+<section id="sec-calendario" class="hidden px-4 pt-4 space-y-4">
+  <div class="flex items-center justify-between">
+    <button onclick="calMover(-1)" class="px-3 py-1.5 rounded-lg bg-card border border-edge text-slate-300 active:bg-cardh">←</button>
+    <h1 id="cal-titulo" class="text-lg font-bold text-slate-100">—</h1>
+    <button onclick="calMover(1)" class="px-3 py-1.5 rounded-lg bg-card border border-edge text-slate-300 active:bg-cardh">→</button>
+  </div>
+  <div id="cal-grid" class="grid grid-cols-7 gap-1"></div>
+  <div id="cal-detalle" class="space-y-2"></div>
+</section>
+
+<!-- ============ SECCIÓN: MÁS ============ -->
+<section id="sec-mas" class="hidden px-4 pt-4 space-y-3">
+  <h1 class="text-lg font-bold text-slate-100">⋯ Más</h1>
+  <div class="grid grid-cols-2 gap-3">
+    <button onclick="abrirDashboard()" class="p-4 rounded-2xl bg-card border border-edge text-left active:bg-cardh">
+      <div class="text-2xl">📊</div><div class="mt-1 font-semibold text-slate-200 text-sm">Resumen</div></button>
+    <button onclick="abrirClientes()" class="p-4 rounded-2xl bg-card border border-edge text-left active:bg-cardh">
+      <div class="text-2xl">👥</div><div class="mt-1 font-semibold text-slate-200 text-sm">Clientes</div></button>
+    <button onclick="abrirImpresoras()" class="p-4 rounded-2xl bg-card border border-edge text-left active:bg-cardh">
+      <div class="text-2xl">🖨️</div><div class="mt-1 font-semibold text-slate-200 text-sm">Impresoras</div></button>
+    <button onclick="abrirGastoRapido()" class="p-4 rounded-2xl bg-card border border-edge text-left active:bg-cardh">
+      <div class="text-2xl">💸</div><div class="mt-1 font-semibold text-slate-200 text-sm">Gasto rápido</div></button>
+  </div>
+  <div id="mas-contenido" class="space-y-3 pt-2"></div>
 </section>
 
 <!-- ============ SECCIÓN: FILAMENTOS ============ -->
@@ -142,15 +188,21 @@
 <!-- ============ TAB BAR INFERIOR ============ -->
 <nav class="fixed bottom-0 inset-x-0 z-30 bg-card/95 backdrop-blur border-t border-edge"
      style="padding-bottom: env(safe-area-inset-bottom)">
-  <div class="grid grid-cols-3">
+  <div class="grid grid-cols-5">
     <button id="tab-pedidos" onclick="mostrar('pedidos')" class="py-3 flex flex-col items-center gap-0.5 text-teal-300">
       <span class="text-lg">📦</span><span class="text-[11px] font-medium">Pedidos</span>
+    </button>
+    <button id="tab-calendario" onclick="mostrar('calendario')" class="py-3 flex flex-col items-center gap-0.5 text-slate-500">
+      <span class="text-lg">📅</span><span class="text-[11px] font-medium">Agenda</span>
     </button>
     <button id="tab-filamentos" onclick="mostrar('filamentos')" class="py-3 flex flex-col items-center gap-0.5 text-slate-500">
       <span class="text-lg">🧵</span><span class="text-[11px] font-medium">Filamentos</span>
     </button>
     <button id="tab-ferias" onclick="mostrar('ferias')" class="py-3 flex flex-col items-center gap-0.5 text-slate-500">
       <span class="text-lg">🎪</span><span class="text-[11px] font-medium">Ferias</span>
+    </button>
+    <button id="tab-mas" onclick="mostrar('mas')" class="py-3 flex flex-col items-center gap-0.5 text-slate-500">
+      <span class="text-lg">⋯</span><span class="text-[11px] font-medium">Más</span>
     </button>
   </div>
 </nav>
