@@ -30,7 +30,9 @@ from config import Config
 from models import (db, User, Filamento, Proyecto, Venta, Gasto,
                     Liquidacion, Inversion, AbonoInversion,
                     Feria, FeriaInventario, FeriaVenta,
-                    FotoPedido, Impresora)
+                    FotoPedido, Impresora,
+                    FilamentoTienda, VentaFilamento,
+                    DeudaFilamento, AbonoDeudaFilamento)
 
 MESES = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
          "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
@@ -1957,6 +1959,180 @@ def registrar_rutas(app):
         db.session.delete(Filamento.query.get_or_404(fid))
         db.session.commit()
         return redirect(url_for("filamentos"))
+
+    # ---------- Venta de Filamentos (reventa de rollos + deuda Sirley) ----------
+    def _deuda_filamentos():
+        """Devuelve la deuda configurada (una sola) o None."""
+        return DeudaFilamento.query.order_by(DeudaFilamento.id).first()
+
+    @app.route("/venta-filamentos")
+    @login_required
+    def venta_filamentos():
+        items = FilamentoTienda.query.order_by(FilamentoTienda.nombre).all()
+        ventas_fil = (VentaFilamento.query
+                      .order_by(VentaFilamento.fecha.desc(), VentaFilamento.id.desc())
+                      .limit(30).all())
+        total_vendido = round(sum(
+            v.precio_total or 0 for v in VentaFilamento.query.all()), 2)
+        return render_template(
+            "venta_filamentos.html",
+            items=items,
+            ventas=ventas_fil,
+            deuda=_deuda_filamentos(),
+            valor_stock=round(sum(i.valor_stock for i in items), 2),
+            rollos_stock=sum(i.cantidad or 0 for i in items),
+            total_vendido=total_vendido)
+
+    @app.route("/venta-filamentos/nuevo", methods=["POST"])
+    @login_required
+    def nuevo_filamento_tienda():
+        f = request.form
+        nombre = (f.get("nombre") or "").strip()
+        if not nombre:
+            flash("El nombre del filamento es obligatorio.", "error")
+            return redirect(url_for("venta_filamentos"))
+        db.session.add(FilamentoTienda(
+            nombre=nombre,
+            material=(f.get("material") or "PLA").strip(),
+            color=(f.get("color") or "").strip(),
+            cantidad=int(float(f.get("cantidad") or 0)),
+            costo_unitario=float(f.get("costo_unitario") or 0),
+            precio_venta=float(f.get("precio_venta") or 0)))
+        db.session.commit()
+        flash("Filamento agregado a la tienda.", "ok")
+        return redirect(url_for("venta_filamentos"))
+
+    @app.route("/venta-filamentos/<int:iid>/editar", methods=["POST"])
+    @login_required
+    def editar_filamento_tienda(iid):
+        item = FilamentoTienda.query.get_or_404(iid)
+        f = request.form
+        agregar = int(float(f.get("agregar") or 0))            # reposición de rollos
+        if agregar:
+            item.cantidad = max((item.cantidad or 0) + agregar, 0)
+        if f.get("precio_venta"):
+            item.precio_venta = float(f.get("precio_venta") or 0)
+        if f.get("costo_unitario"):
+            item.costo_unitario = float(f.get("costo_unitario") or 0)
+        db.session.commit()
+        flash(f"«{item.nombre}» actualizado.", "ok")
+        return redirect(url_for("venta_filamentos"))
+
+    @app.route("/venta-filamentos/<int:iid>/eliminar", methods=["POST"])
+    @login_required
+    def eliminar_filamento_tienda(iid):
+        db.session.delete(FilamentoTienda.query.get_or_404(iid))
+        db.session.commit()
+        return redirect(url_for("venta_filamentos"))
+
+    @app.route("/venta-filamentos/<int:iid>/vender", methods=["POST"])
+    @login_required
+    def vender_filamento(iid):
+        item = FilamentoTienda.query.get_or_404(iid)
+        f = request.form
+        cantidad = max(int(float(f.get("cantidad") or 1)), 1)
+        if cantidad > (item.cantidad or 0):
+            flash(f"Stock insuficiente de «{item.nombre}» "
+                  f"(quedan {item.cantidad or 0}).", "error")
+            return redirect(url_for("venta_filamentos"))
+        # Total editable (para descuentos); si viene vacío usa precio de lista.
+        try:
+            precio_total = float(f.get("precio_total") or "")
+        except ValueError:
+            precio_total = cantidad * (item.precio_venta or 0.0)
+        precio_total = round(max(precio_total, 0.0), 2)
+
+        item.cantidad = (item.cantidad or 0) - cantidad
+        venta = VentaFilamento(
+            item_id=item.id, item_nombre=item.nombre,
+            cantidad=cantidad, precio_total=precio_total,
+            nota=(f.get("nota") or "").strip() or None,
+            usuario_id=current_user.id)
+        db.session.add(venta)
+
+        # Abono automático a la deuda: % configurable de cada venta,
+        # sin pasarse de lo pendiente.
+        deuda = _deuda_filamentos()
+        if deuda and deuda.activa and deuda.pendiente > 0 and precio_total > 0:
+            abono = round(min(precio_total * (deuda.porcentaje or 0) / 100.0,
+                              deuda.pendiente), 2)
+            if abono > 0:
+                venta.abono_deuda = abono
+                db.session.flush()          # asegura venta.id para el vínculo
+                db.session.add(AbonoDeudaFilamento(
+                    deuda_id=deuda.id, venta_id=venta.id, monto=abono,
+                    nota=f"Venta: {item.nombre} x{cantidad}"))
+        db.session.commit()
+
+        msg = f"Vendido {item.nombre} x{cantidad} por Bs. {precio_total:,.0f}."
+        if venta.abono_deuda:
+            msg += f" Se abonaron Bs. {venta.abono_deuda:,.0f} a la deuda."
+        flash(msg, "ok")
+        return redirect(url_for("venta_filamentos"))
+
+    @app.route("/venta-filamentos/ventas/<int:vid>/eliminar", methods=["POST"])
+    @login_required
+    def eliminar_venta_filamento(vid):
+        v = VentaFilamento.query.get_or_404(vid)
+        # Devuelve el stock si el ítem sigue existiendo y revierte su abono.
+        if v.item_id:
+            item = FilamentoTienda.query.get(v.item_id)
+            if item:
+                item.cantidad = (item.cantidad or 0) + (v.cantidad or 0)
+        AbonoDeudaFilamento.query.filter_by(venta_id=v.id).delete()
+        db.session.delete(v)
+        db.session.commit()
+        flash("Venta eliminada: stock y deuda revertidos.", "ok")
+        return redirect(url_for("venta_filamentos"))
+
+    @app.route("/venta-filamentos/deuda", methods=["POST"])
+    @login_required
+    def configurar_deuda_filamentos():
+        f = request.form
+        deuda = _deuda_filamentos()
+        if not deuda:
+            deuda = DeudaFilamento()
+            db.session.add(deuda)
+        deuda.acreedor = (f.get("acreedor") or "Sirley").strip() or "Sirley"
+        deuda.monto_total = max(float(f.get("monto_total") or 0), 0.0)
+        deuda.porcentaje = min(max(float(f.get("porcentaje") or 0), 0.0), 100.0)
+        deuda.activa = bool(f.get("activa"))
+        db.session.commit()
+        flash(f"Deuda de {deuda.acreedor} actualizada.", "ok")
+        return redirect(url_for("venta_filamentos"))
+
+    @app.route("/venta-filamentos/deuda/abono", methods=["POST"])
+    @login_required
+    def abono_manual_deuda_filamentos():
+        deuda = _deuda_filamentos()
+        if not deuda:
+            flash("Primero configura la deuda.", "error")
+            return redirect(url_for("venta_filamentos"))
+        monto = round(float(request.form.get("monto") or 0), 2)
+        if monto <= 0:
+            flash("El monto del abono debe ser mayor a 0.", "error")
+            return redirect(url_for("venta_filamentos"))
+        monto = min(monto, deuda.pendiente)
+        db.session.add(AbonoDeudaFilamento(
+            deuda_id=deuda.id, monto=monto,
+            nota=(request.form.get("nota") or "").strip() or "Abono manual"))
+        db.session.commit()
+        flash(f"Abono de Bs. {monto:,.0f} registrado.", "ok")
+        return redirect(url_for("venta_filamentos"))
+
+    @app.route("/venta-filamentos/deuda/abonos/<int:aid>/eliminar", methods=["POST"])
+    @login_required
+    def eliminar_abono_deuda_filamentos(aid):
+        a = AbonoDeudaFilamento.query.get_or_404(aid)
+        # Si el abono vino de una venta, desliga el monto de esa venta.
+        if a.venta_id:
+            v = VentaFilamento.query.get(a.venta_id)
+            if v:
+                v.abono_deuda = 0.0
+        db.session.delete(a)
+        db.session.commit()
+        flash("Abono eliminado.", "ok")
+        return redirect(url_for("venta_filamentos"))
 
     # ---------- Ventas ----------
     @app.route("/ventas")

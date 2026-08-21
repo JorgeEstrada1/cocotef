@@ -561,3 +561,109 @@ class FeriaVenta(db.Model):
 
     def __repr__(self):
         return f"<FeriaVenta {self.producto_nombre} x{self.cantidad} ${self.precio_total}>"
+
+
+# --------------------------------------------------------------------------
+#  Módulo de Venta de Filamentos: reventa de rollos + deuda con Sirley
+#  Módulo autocontenido (como Ferias): no toca el balance general.
+# --------------------------------------------------------------------------
+class FilamentoTienda(db.Model):
+    """Rollo de filamento comprado para REVENTA (distinto del inventario de taller)."""
+    __tablename__ = "filamentos_tienda"
+
+    id = db.Column(db.Integer, primary_key=True)
+    nombre = db.Column(db.String(120), nullable=False)        # "PLA Rojo eSun 1kg"
+    material = db.Column(db.String(40), default="PLA")
+    color = db.Column(db.String(60))
+    cantidad = db.Column(db.Integer, default=0)               # rollos en stock
+    costo_unitario = db.Column(db.Float, default=0.0)         # lo que costó cada rollo (Bs.)
+    precio_venta = db.Column(db.Float, default=0.0)           # precio al público (Bs.)
+    creado = db.Column(db.DateTime, default=datetime.utcnow)
+
+    @property
+    def ganancia_unitaria(self):
+        return round((self.precio_venta or 0.0) - (self.costo_unitario or 0.0), 2)
+
+    @property
+    def valor_stock(self):
+        """Valor de lo que queda en estante, a precio de venta."""
+        return round((self.cantidad or 0) * (self.precio_venta or 0.0), 2)
+
+    def __repr__(self):
+        return f"<FilamentoTienda {self.nombre} x{self.cantidad}>"
+
+
+class VentaFilamento(db.Model):
+    """Cada venta de rollos registrada en la tienda de filamentos."""
+    __tablename__ = "ventas_filamento"
+
+    id = db.Column(db.Integer, primary_key=True)
+    item_id = db.Column(db.Integer, db.ForeignKey("filamentos_tienda.id"))
+    item_nombre = db.Column(db.String(120), nullable=False)   # se conserva aunque se borre el ítem
+    cantidad = db.Column(db.Integer, default=1)
+    precio_total = db.Column(db.Float, default=0.0)
+    abono_deuda = db.Column(db.Float, default=0.0)            # parte que fue a la deuda
+    nota = db.Column(db.String(200))
+    usuario_id = db.Column(db.Integer, db.ForeignKey("usuarios.id"))   # quién vendió
+    fecha = db.Column(db.Date, default=date.today)
+
+    usuario = db.relationship("User")
+
+    def __repr__(self):
+        return f"<VentaFilamento {self.item_nombre} x{self.cantidad} ${self.precio_total}>"
+
+
+class DeudaFilamento(db.Model):
+    """
+    Deuda con quien financió los filamentos (ej. Sirley). Configurable:
+    monto total y % de cada venta que se destina automáticamente a abonarla.
+    Independiente de la caja general (como el módulo de Inversiones).
+    """
+    __tablename__ = "deuda_filamentos"
+
+    id = db.Column(db.Integer, primary_key=True)
+    acreedor = db.Column(db.String(80), default="Sirley")
+    monto_total = db.Column(db.Float, default=0.0)            # deuda original (Bs.)
+    porcentaje = db.Column(db.Float, default=100.0)           # % de cada venta que abona (0-100)
+    activa = db.Column(db.Boolean, default=True)              # si False, las ventas no abonan
+    creado = db.Column(db.DateTime, default=datetime.utcnow)
+
+    abonos = db.relationship("AbonoDeudaFilamento", backref="deuda",
+                             cascade="all, delete-orphan",
+                             order_by="AbonoDeudaFilamento.id")
+
+    @property
+    def abonado(self):
+        return round(sum(a.monto or 0.0 for a in self.abonos), 2)
+
+    @property
+    def pendiente(self):
+        return round(max((self.monto_total or 0.0) - self.abonado, 0.0), 2)
+
+    @property
+    def saldada(self):
+        return (self.monto_total or 0.0) > 0 and self.pendiente <= 0
+
+    @property
+    def progreso_pct(self):
+        if not self.monto_total:
+            return 0.0
+        return round(min(self.abonado / self.monto_total * 100, 100.0), 1)
+
+    def __repr__(self):
+        return f"<DeudaFilamento {self.acreedor} pendiente={self.pendiente}>"
+
+
+class AbonoDeudaFilamento(db.Model):
+    """Cada abono a la deuda: automático (ligado a una venta) o manual."""
+    __tablename__ = "abonos_deuda_filamentos"
+
+    id = db.Column(db.Integer, primary_key=True)
+    deuda_id = db.Column(db.Integer, db.ForeignKey("deuda_filamentos.id"), nullable=False)
+    venta_id = db.Column(db.Integer, db.ForeignKey("ventas_filamento.id"))  # None = abono manual
+    monto = db.Column(db.Float, nullable=False)
+    nota = db.Column(db.String(200))
+    fecha = db.Column(db.Date, default=date.today)
+
+    def __repr__(self):
+        return f"<AbonoDeudaFilamento {self.monto} deuda={self.deuda_id}>"

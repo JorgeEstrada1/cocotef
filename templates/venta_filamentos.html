@@ -1,0 +1,254 @@
+{% extends "base.html" %}
+{% block titulo %}Venta de Filamentos{% endblock %}
+{% block contenido %}
+{% set inp = "bg-base border border-edge rounded-lg px-3 py-2 text-slate-100 placeholder-slate-600 focus:border-teal-400 outline-none" %}
+<h1 class="text-2xl font-bold mb-6 text-slate-100">🧵 Venta de Filamentos</h1>
+
+<!-- Resumen -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+  <div class="bg-card border border-edge rounded-xl p-4">
+    <p class="text-xs text-slate-500 uppercase tracking-wide">Rollos en stock</p>
+    <p class="text-2xl font-bold text-slate-100 mt-1">{{ rollos_stock }}</p>
+  </div>
+  <div class="bg-card border border-edge rounded-xl p-4">
+    <p class="text-xs text-slate-500 uppercase tracking-wide">Valor del stock</p>
+    <p class="text-2xl font-bold text-teal-300 mt-1">{{ valor_stock | money }}</p>
+  </div>
+  <div class="bg-card border border-edge rounded-xl p-4">
+    <p class="text-xs text-slate-500 uppercase tracking-wide">Total vendido</p>
+    <p class="text-2xl font-bold text-cyan-300 mt-1">{{ total_vendido | money }}</p>
+  </div>
+  <div class="bg-card border border-edge rounded-xl p-4">
+    <p class="text-xs text-slate-500 uppercase tracking-wide">Deuda pendiente</p>
+    <p class="text-2xl font-bold {{ 'text-emerald-300' if deuda and deuda.saldada else 'text-amber-300' }} mt-1">
+      {{ (deuda.pendiente if deuda else 0) | money }}
+    </p>
+  </div>
+</div>
+
+<!-- ═══════════ Deuda Sirley ═══════════ -->
+<div class="bg-card border {{ 'border-emerald-500/40' if deuda and deuda.saldada else 'border-amber-500/30' }} rounded-xl shadow-lg p-5 mb-6">
+  <div class="flex flex-wrap items-center justify-between gap-2">
+    <h2 class="font-semibold text-slate-200">
+      💜 Pago deuda {{ deuda.acreedor if deuda else "Sirley" }}
+      {% if deuda and deuda.saldada %}
+      <span class="ml-2 text-xs px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">✅ Saldada</span>
+      {% elif deuda and not deuda.activa %}
+      <span class="ml-2 text-xs px-2 py-0.5 rounded-md bg-slate-500/15 text-slate-400 border border-slate-500/30">⏸️ Abono automático pausado</span>
+      {% endif %}
+    </h2>
+    {% if deuda %}
+    <span class="text-sm text-slate-400">
+      Cada venta abona el <b class="text-teal-300">{{ '%.0f'|format(deuda.porcentaje or 0) }}%</b> automáticamente
+    </span>
+    {% endif %}
+  </div>
+
+  {% if deuda %}
+  <div class="mt-3">
+    <div class="flex justify-between text-sm mb-1">
+      <span class="text-slate-400">Abonado: <b class="text-emerald-300">{{ deuda.abonado | money }}</b></span>
+      <span class="text-slate-400">Pendiente: <b class="text-amber-300">{{ deuda.pendiente | money }}</b> de {{ deuda.monto_total | money }}</span>
+    </div>
+    <div class="h-3 rounded-full bg-base overflow-hidden">
+      <div class="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400"
+           style="width: {{ deuda.progreso_pct }}%"></div>
+    </div>
+    <p class="text-right text-xs text-slate-500 mt-1">{{ deuda.progreso_pct }}% pagado</p>
+  </div>
+
+  <!-- Abono manual -->
+  {% if not deuda.saldada %}
+  <form method="post" action="{{ url_for('abono_manual_deuda_filamentos') }}"
+        class="flex flex-wrap gap-2 mt-3">
+    <input name="monto" type="number" step="0.5" min="0.5" placeholder="Monto Bs." required class="{{ inp }} w-32 text-sm">
+    <input name="nota" placeholder="Nota (opcional)" class="{{ inp }} flex-1 min-w-[140px] text-sm">
+    <button class="px-4 py-2 rounded-lg text-sm font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25">
+      + Abono manual
+    </button>
+  </form>
+  {% endif %}
+
+  <!-- Historial de abonos -->
+  {% if deuda.abonos %}
+  <details class="mt-3">
+    <summary class="text-sm text-slate-400 cursor-pointer hover:text-teal-300">
+      Ver historial de abonos ({{ deuda.abonos | length }})
+    </summary>
+    <table class="w-full text-sm mt-2">
+      <thead>
+        <tr class="text-left text-slate-500 border-b border-edge">
+          <th class="py-1.5">Fecha</th><th>Detalle</th><th class="text-right">Monto</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in deuda.abonos | reverse %}
+        <tr class="border-b border-edge/50">
+          <td class="py-1.5 text-slate-400">{{ a.fecha.strftime('%d/%m/%Y') if a.fecha else '—' }}</td>
+          <td class="text-slate-300">
+            {{ a.nota or '—' }}
+            {% if a.venta_id %}<span class="text-xs text-slate-600">(automático)</span>{% endif %}
+          </td>
+          <td class="text-right text-emerald-300 font-semibold">{{ a.monto | money }}</td>
+          <td class="text-right">
+            <form method="post" action="{{ url_for('eliminar_abono_deuda_filamentos', aid=a.id) }}"
+                  onsubmit="return confirm('¿Eliminar este abono?')" class="inline">
+              <button class="text-rose-400 hover:text-rose-300 text-xs">✕</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </details>
+  {% endif %}
+  {% else %}
+  <p class="text-sm text-slate-500 mt-2">Aún no configuraste la deuda. Hazlo aquí abajo 👇</p>
+  {% endif %}
+
+  <!-- Configuración (editable) -->
+  <details class="mt-4" {{ 'open' if not deuda }}>
+    <summary class="text-sm text-slate-400 cursor-pointer hover:text-teal-300">⚙️ Configurar deuda</summary>
+    <form method="post" action="{{ url_for('configurar_deuda_filamentos') }}"
+          class="grid grid-cols-1 md:grid-cols-5 gap-3 mt-3 items-end">
+      <label class="text-xs text-slate-500">A quién se le debe
+        <input name="acreedor" value="{{ deuda.acreedor if deuda else 'Sirley' }}" class="{{ inp }} w-full mt-1">
+      </label>
+      <label class="text-xs text-slate-500">Deuda total (Bs.)
+        <input name="monto_total" type="number" step="0.5" min="0" required
+               value="{{ deuda.monto_total if deuda else '' }}" placeholder="ej. 1500" class="{{ inp }} w-full mt-1">
+      </label>
+      <label class="text-xs text-slate-500">% de cada venta que abona
+        <input name="porcentaje" type="number" step="1" min="0" max="100"
+               value="{{ '%.0f'|format(deuda.porcentaje) if deuda else 100 }}" class="{{ inp }} w-full mt-1">
+      </label>
+      <label class="flex items-center gap-2 text-sm text-slate-300 py-2">
+        <input type="checkbox" name="activa" value="1" {{ 'checked' if not deuda or deuda.activa }}
+               class="accent-teal-400 w-4 h-4">
+        Abono automático activo
+      </label>
+      <button class="bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-900 font-semibold rounded-lg py-2 hover:opacity-90">
+        Guardar
+      </button>
+    </form>
+  </details>
+</div>
+
+<!-- ═══════════ Agregar filamento al stock ═══════════ -->
+<div class="bg-card border border-edge rounded-xl shadow-lg p-5 mb-6">
+  <h2 class="font-semibold mb-3 text-slate-200">Agregar filamento a la venta</h2>
+  <form method="post" action="{{ url_for('nuevo_filamento_tienda') }}"
+        class="grid grid-cols-2 md:grid-cols-7 gap-3">
+    <input name="nombre" placeholder="Nombre (ej. PLA eSun 1kg) *" required class="{{ inp }} col-span-2">
+    <input name="material" placeholder="Material" value="PLA" class="{{ inp }}">
+    <input name="color" placeholder="Color" class="{{ inp }}">
+    <input name="cantidad" type="number" step="1" min="0" placeholder="Rollos" class="{{ inp }}">
+    <input name="costo_unitario" type="number" step="0.5" min="0" placeholder="Costo c/u" class="{{ inp }}">
+    <input name="precio_venta" type="number" step="0.5" min="0" placeholder="Precio venta" class="{{ inp }}">
+    <button class="bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-900 font-semibold rounded-lg py-2 hover:opacity-90 col-span-2 md:col-span-1">
+      Guardar
+    </button>
+  </form>
+</div>
+
+<!-- ═══════════ Stock a la venta ═══════════ -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+  {% for i in items %}
+  <div class="bg-card border {{ 'border-edge' if i.cantidad else 'border-rose-500/30' }} rounded-xl p-4">
+    <div class="flex items-center justify-between gap-2">
+      <h3 class="font-bold text-slate-100 flex items-center gap-2">
+        <span class="w-3.5 h-3.5 rounded-full ring-1 ring-white/20 inline-block"
+              style="background: {{ i.color | color_hex }}"></span>
+        {{ i.nombre }}
+      </h3>
+      <span class="text-xs px-2 py-0.5 rounded-md {{ 'bg-teal-500/15 text-teal-300 border border-teal-500/30' if i.cantidad else 'bg-rose-500/15 text-rose-300 border border-rose-500/30' }}">
+        {{ i.cantidad or 0 }} rollo{{ 's' if (i.cantidad or 0) != 1 }}
+      </span>
+    </div>
+    <p class="text-sm text-slate-400 mt-1">
+      {{ i.material }}{{ ' · ' + i.color if i.color }} ·
+      Costo {{ i.costo_unitario | money }} →
+      Venta <b class="text-teal-300">{{ i.precio_venta | money }}</b>
+      <span class="text-slate-600">(+{{ i.ganancia_unitaria | money }} c/u)</span>
+    </p>
+
+    <!-- Vender -->
+    <form method="post" action="{{ url_for('vender_filamento', iid=i.id) }}"
+          class="flex flex-wrap gap-2 mt-3">
+      <input name="cantidad" type="number" step="1" min="1" max="{{ i.cantidad or 0 }}" value="1"
+             oninput="this.form.precio_total.value = (this.value * {{ i.precio_venta or 0 }}).toFixed(2)"
+             class="{{ inp }} w-20 text-sm py-1.5" {{ 'disabled' if not i.cantidad }}>
+      <input name="precio_total" type="number" step="0.5" min="0"
+             value="{{ '%.2f'|format(i.precio_venta or 0) }}" title="Total Bs. (editable)"
+             class="{{ inp }} w-28 text-sm py-1.5" {{ 'disabled' if not i.cantidad }}>
+      <button class="px-4 py-1.5 rounded-lg text-sm font-semibold bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-900 hover:opacity-90 disabled:opacity-40"
+              {{ 'disabled' if not i.cantidad }}>
+        💰 Vender
+      </button>
+    </form>
+
+    <!-- Reponer / editar / eliminar -->
+    <details class="mt-2">
+      <summary class="text-xs text-slate-500 cursor-pointer hover:text-teal-300">Reponer stock o editar precios</summary>
+      <div class="flex flex-wrap gap-2 mt-2">
+        <form method="post" action="{{ url_for('editar_filamento_tienda', iid=i.id) }}" class="flex flex-wrap gap-2">
+          <input name="agregar" type="number" step="1" placeholder="+ rollos" class="{{ inp }} w-24 text-sm py-1.5">
+          <input name="precio_venta" type="number" step="0.5" min="0" placeholder="Precio venta" class="{{ inp }} w-28 text-sm py-1.5">
+          <input name="costo_unitario" type="number" step="0.5" min="0" placeholder="Costo c/u" class="{{ inp }} w-24 text-sm py-1.5">
+          <button class="px-3 py-1.5 rounded-lg text-sm bg-base border border-edge text-slate-300 hover:bg-cardh">Actualizar</button>
+        </form>
+        <form method="post" action="{{ url_for('eliminar_filamento_tienda', iid=i.id) }}"
+              onsubmit="return confirm('¿Eliminar «{{ i.nombre }}» de la tienda?')">
+          <button class="px-3 py-1.5 rounded-lg text-sm text-rose-400 hover:text-rose-300">Eliminar</button>
+        </form>
+      </div>
+    </details>
+  </div>
+  {% else %}
+  <p class="text-slate-500 col-span-2">Todavía no hay filamentos a la venta. Agrega el primero arriba.</p>
+  {% endfor %}
+</div>
+
+<!-- ═══════════ Últimas ventas ═══════════ -->
+<div class="bg-card border border-edge rounded-xl shadow-lg p-5">
+  <h2 class="font-semibold mb-3 text-slate-200">Últimas ventas</h2>
+  {% if ventas %}
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left text-slate-500 border-b border-edge">
+          <th class="py-2">Fecha</th><th>Filamento</th><th class="text-center">Cant.</th>
+          <th class="text-right">Total</th><th class="text-right">A deuda</th>
+          <th>Vendió</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for v in ventas %}
+        <tr class="border-b border-edge/50 hover:bg-cardh/50">
+          <td class="py-2 text-slate-400">{{ v.fecha.strftime('%d/%m/%Y') if v.fecha else '—' }}</td>
+          <td class="text-slate-200">
+            {{ v.item_nombre }}
+            {% if v.nota %}<span class="text-xs text-slate-500">· {{ v.nota }}</span>{% endif %}
+          </td>
+          <td class="text-center text-slate-300">{{ v.cantidad }}</td>
+          <td class="text-right text-teal-300 font-semibold">{{ v.precio_total | money }}</td>
+          <td class="text-right {{ 'text-emerald-300' if v.abono_deuda else 'text-slate-600' }}">
+            {{ v.abono_deuda | money if v.abono_deuda else '—' }}
+          </td>
+          <td class="text-slate-400">{{ v.usuario.nombre if v.usuario else '—' }}</td>
+          <td class="text-right">
+            <form method="post" action="{{ url_for('eliminar_venta_filamento', vid=v.id) }}"
+                  onsubmit="return confirm('¿Eliminar la venta? Se devuelve el stock y se revierte el abono a la deuda.')">
+              <button class="text-rose-400 hover:text-rose-300 text-xs">✕</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="text-slate-500 text-sm">Sin ventas registradas todavía.</p>
+  {% endif %}
+</div>
+{% endblock %}
