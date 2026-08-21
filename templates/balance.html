@@ -9,21 +9,22 @@
 <div class="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-8">
   <div class="bg-card border border-edge rounded-xl shadow-lg p-5">
     <p class="text-sm text-slate-400">Ingresos</p>
-    <p class="text-xl font-bold text-teal-400">{{ bal.total_ingresos | money }}</p>
+    <p class="text-xl font-bold text-teal-400" data-contar="{{ bal.total_ingresos }}">{{ bal.total_ingresos | money }}</p>
   </div>
   <div class="bg-card border border-edge rounded-xl shadow-lg p-5">
     <p class="text-sm text-slate-400">Gastos</p>
-    <p class="text-xl font-bold text-rose-400">{{ bal.total_gastos | money }}</p>
+    <p class="text-xl font-bold text-rose-400" data-contar="{{ bal.total_gastos }}">{{ bal.total_gastos | money }}</p>
   </div>
   <div class="bg-card border border-edge rounded-xl shadow-lg p-5">
     <p class="text-sm text-slate-400">Ganancia neta</p>
-    <p class="text-xl font-bold {{ 'text-cyan-400' if bal.ganancia_neta >= 0 else 'text-rose-400' }}">
+    <p class="text-xl font-bold {{ 'text-cyan-400' if bal.ganancia_neta >= 0 else 'text-rose-400' }}"
+       data-contar="{{ bal.ganancia_neta }}">
       {{ bal.ganancia_neta | money }}
     </p>
   </div>
   <div class="bg-gradient-to-br from-teal-500 to-cyan-600 text-slate-900 rounded-xl shadow-lg p-5">
     <p class="text-sm opacity-80">A cada uno (50%)</p>
-    <p class="text-xl font-bold">{{ bal.parte_justa | money }}</p>
+    <p class="text-xl font-bold" data-contar="{{ bal.parte_justa }}">{{ bal.parte_justa | money }}</p>
   </div>
 </div>
 

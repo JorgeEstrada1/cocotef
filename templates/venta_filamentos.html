@@ -17,19 +17,20 @@
 <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
   <div class="bg-card border border-edge rounded-xl p-4">
     <p class="text-xs text-slate-500 uppercase tracking-wide">Rollos en stock</p>
-    <p class="text-2xl font-bold text-slate-100 mt-1">{{ rollos_stock }}</p>
+    <p class="text-2xl font-bold text-slate-100 mt-1" data-contar="{{ rollos_stock }}">{{ rollos_stock }}</p>
   </div>
   <div class="bg-card border border-edge rounded-xl p-4">
     <p class="text-xs text-slate-500 uppercase tracking-wide">Valor del stock</p>
-    <p class="text-2xl font-bold text-teal-300 mt-1">{{ valor_stock | money }}</p>
+    <p class="text-2xl font-bold text-teal-300 mt-1" data-contar="{{ valor_stock }}">{{ valor_stock | money }}</p>
   </div>
   <div class="bg-card border border-edge rounded-xl p-4">
     <p class="text-xs text-slate-500 uppercase tracking-wide">Total vendido</p>
-    <p class="text-2xl font-bold text-cyan-300 mt-1">{{ total_vendido | money }}</p>
+    <p class="text-2xl font-bold text-cyan-300 mt-1" data-contar="{{ total_vendido }}">{{ total_vendido | money }}</p>
   </div>
   <div class="bg-card border border-edge rounded-xl p-4">
     <p class="text-xs text-slate-500 uppercase tracking-wide">Deuda pendiente</p>
-    <p class="text-2xl font-bold {{ 'text-emerald-300' if deuda and deuda.saldada else 'text-amber-300' }} mt-1">
+    <p class="text-2xl font-bold {{ 'text-emerald-300' if deuda and deuda.saldada else 'text-amber-300' }} mt-1"
+       {% if deuda and deuda.pendiente %}data-contar="{{ deuda.pendiente }}"{% endif %}>
       {{ (deuda.pendiente if deuda else 0) | money }}
     </p>
   </div>

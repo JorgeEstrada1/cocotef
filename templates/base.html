@@ -310,6 +310,27 @@
         });
       }
     }, true);
+
+    // ----- Contadores animados (elementos con data-contar="valor") -----
+    if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      document.querySelectorAll("[data-contar]").forEach(el => {
+        const num = parseFloat(el.dataset.contar);
+        const final = el.textContent;
+        if (isNaN(num) || num === 0) return;
+        const conPrefijo = final.trim().startsWith("Bs.");
+        const dec = Number.isInteger(num) ? 0 : 2;
+        const dur = 650, t0 = performance.now();
+        function paso(t) {
+          const k = Math.min((t - t0) / dur, 1);
+          const v = num * (1 - Math.pow(1 - k, 3));   // ease-out
+          el.textContent = (conPrefijo ? "Bs. " : "") +
+            v.toLocaleString("en-US", { minimumFractionDigits: dec, maximumFractionDigits: dec });
+          if (k < 1) requestAnimationFrame(paso);
+          else el.textContent = final;               // termina con el valor exacto
+        }
+        requestAnimationFrame(paso);
+      });
+    }
   </script>
 </body>
 </html>

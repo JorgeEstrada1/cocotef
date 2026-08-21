@@ -681,9 +681,22 @@ def registrar_rutas(app):
         alertas_stock = [f for f in Filamento.query.all() if f.bajo_stock]
         # Agente Asistente: pedidos urgentes + tendencias
         urgentes = obtener_proyectos_urgentes()
+
+        # Resumen operativo del día (accesos rápidos con contadores).
+        activos = Proyecto.query.filter(
+            ~Proyecto.estado.in_(Proyecto.ESTADOS_CERRADOS)).all()
+        por_cobrar = round(sum(p.saldo_pendiente for p in activos
+                               if (p.precio_total or 0) > 0 and p.saldo_pendiente > 0), 2)
+        deuda_tienda = _deuda_filamentos()
+        resumen = {
+            "pedidos_activos": len(activos),
+            "por_cobrar": por_cobrar,
+            "deuda_sirley": deuda_tienda.pendiente if deuda_tienda else 0.0,
+            "deuda_acreedor": deuda_tienda.acreedor if deuda_tienda else "Sirley",
+        }
         return render_template("dashboard.html", bal=bal, per=per,
                                proyectos=proyectos, conteo_estados=conteo_estados,
-                               alertas_stock=alertas_stock,
+                               alertas_stock=alertas_stock, resumen=resumen,
                                urgentes=urgentes, tendencias=TENDENCIAS_VIRALES)
 
     # ---------- App de Taller (vista móvil de producción) ----------
