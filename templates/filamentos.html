@@ -61,7 +61,7 @@
         </td>
         <td class="p-3">
           <form method="post" action="{{ url_for('eliminar_filamento', fid=f.id) }}"
-                onsubmit="return confirm('¿Eliminar filamento?')">
+                data-confirm="¿Eliminar filamento?">
             <button class="text-rose-400 hover:text-rose-300">Eliminar</button>
           </form>
         </td>

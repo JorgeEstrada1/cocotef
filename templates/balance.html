@@ -196,7 +196,7 @@
     📜 Historial de Liquidaciones y Pagos entre Socios
   </h2>
   <div class="bg-card border border-edge rounded-xl shadow-lg overflow-x-auto">
-    <table class="w-full text-sm">
+    <table class="w-full text-sm tabla-resp">
       <thead class="bg-cardh text-slate-400 text-left">
         <tr>
           <th class="p-3">Fecha</th>
@@ -210,8 +210,8 @@
       <tbody>
         {% for l in historial %}
         <tr class="border-t border-edge hover:bg-cardh/50">
-          <td class="p-3 text-slate-300">{{ l.fecha.strftime('%d/%m/%Y') if l.fecha else '—' }}</td>
-          <td class="p-3">
+          <td class="p-3 text-slate-300" data-label="Fecha">{{ l.fecha.strftime('%d/%m/%Y') if l.fecha else '—' }}</td>
+          <td class="p-3" data-label="Paga">
             {% if l.pagador %}
             <span class="inline-flex items-center gap-1.5 text-rose-300">
               <span class="w-2.5 h-2.5 rounded-full" style="background: {{ l.pagador.color }}"></span>
@@ -219,7 +219,7 @@
             </span>
             {% else %}<span class="text-slate-500">—</span>{% endif %}
           </td>
-          <td class="p-3">
+          <td class="p-3" data-label="Recibe">
             {% if l.receptor %}
             <span class="inline-flex items-center gap-1.5 text-teal-300">
               <span class="w-2.5 h-2.5 rounded-full" style="background: {{ l.receptor.color }}"></span>
@@ -227,11 +227,11 @@
             </span>
             {% else %}<span class="text-slate-500">—</span>{% endif %}
           </td>
-          <td class="p-3 text-right font-semibold text-teal-400">{{ l.monto | money }}</td>
-          <td class="p-3 text-slate-300">{{ meses[l.mes] }} {{ l.anio }}</td>
+          <td class="p-3 text-right font-semibold text-teal-400" data-label="Monto">{{ l.monto | money }}</td>
+          <td class="p-3 text-slate-300" data-label="Mes">{{ meses[l.mes] }} {{ l.anio }}</td>
           <td class="p-3">
             <form method="post" action="{{ url_for('eliminar_liquidacion', lid=l.id) }}"
-                  onsubmit="return confirm('¿Revertir esta liquidación? El ajuste del mes se recalculará.')">
+                  data-confirm="¿Revertir esta liquidación? El ajuste del mes se recalculará.">
               <button class="text-rose-400 hover:text-rose-300">Revertir</button>
             </form>
           </td>

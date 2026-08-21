@@ -42,7 +42,7 @@
         <button class="px-3 py-1.5 rounded-lg text-sm bg-teal-500/15 text-teal-300 border border-teal-500/30 hover:bg-teal-500/25">🔧 Mantenimiento hecho</button>
       </form>
       <form method="post" action="{{ url_for('eliminar_impresora', mid=m.id) }}"
-            onsubmit="return confirm('¿Eliminar impresora?')">
+            data-confirm="¿Eliminar impresora?">
         <button class="px-3 py-1.5 rounded-lg text-sm text-rose-400 hover:text-rose-300">Eliminar</button>
       </form>
     </div>

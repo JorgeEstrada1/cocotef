@@ -225,7 +225,7 @@
             <a href="{{ url_for('descargar_gcode', pid=p.id) }}" class="text-cyan-400 hover:text-cyan-300">G-Code</a>
             {% endif %}
             <form method="post" action="{{ url_for('eliminar_proyecto', pid=p.id) }}"
-                  onsubmit="return confirm('¿Eliminar proyecto?')">
+                  data-confirm="¿Eliminar proyecto?">
               <button class="text-rose-400 hover:text-rose-300">Eliminar</button>
             </form>
           </div>

@@ -101,7 +101,7 @@
     </div>
 
     <form method="post" action="{{ url_for('importar_db') }}" enctype="multipart/form-data"
-          onsubmit="return confirm('¿Seguro que deseas REEMPLAZAR la base de datos actual? Esta acción no se puede deshacer (se guardará un respaldo).');"
+          data-confirm="¿Seguro que deseas REEMPLAZAR la base de datos actual? Esta acción no se puede deshacer (se guardará un respaldo)."
           class="space-y-3">
       <input type="file" name="db_file" accept=".db" required
              class="w-full text-sm text-slate-400 bg-base border border-edge rounded-lg cursor-pointer
@@ -130,7 +130,7 @@
       versión del código desde el repositorio.
     </p>
     <form method="post" action="{{ url_for('git_pull') }}"
-          onsubmit="return confirm('¿Ejecutar git pull para actualizar el código?');">
+          data-confirm="¿Ejecutar git pull para actualizar el código?">
       <button class="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-500 to-cyan-500
                      text-slate-900 font-semibold rounded-lg py-2.5 hover:opacity-90 transition
                      shadow-lg shadow-indigo-500/20">

@@ -9,7 +9,7 @@
 
 {% if ranking %}
 <div class="bg-card border border-edge rounded-xl shadow-lg overflow-x-auto">
-  <table class="w-full text-sm">
+  <table class="w-full text-sm tabla-resp">
     <thead class="bg-cardh text-slate-400 text-left">
       <tr>
         <th class="p-3">#</th>
@@ -23,19 +23,19 @@
     <tbody>
       {% for c in ranking %}
       <tr class="border-t border-edge hover:bg-cardh/50">
-        <td class="p-3 text-slate-500">
+        <td class="p-3 text-slate-500" data-label="Puesto">
           {% if loop.index == 1 %}🥇{% elif loop.index == 2 %}🥈{% elif loop.index == 3 %}🥉{% else %}{{ loop.index }}{% endif %}
         </td>
-        <td class="p-3">
+        <td class="p-3" data-label="Cliente">
           <a href="{{ url_for('ficha_cliente', nombre=c.nombre) }}"
              class="font-semibold text-slate-100 hover:text-teal-300">{{ c.nombre }}</a>
           {% if c.activos %}
           <span class="ml-1 text-xs px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">{{ c.activos }} en curso</span>
           {% endif %}
         </td>
-        <td class="p-3 text-center text-slate-300">{{ c.pedidos }}</td>
-        <td class="p-3 text-right font-semibold text-teal-300">{{ c.total | money }}</td>
-        <td class="p-3 text-slate-400">
+        <td class="p-3 text-center text-slate-300" data-label="Pedidos">{{ c.pedidos }}</td>
+        <td class="p-3 text-right font-semibold text-teal-300" data-label="Total comprado">{{ c.total | money }}</td>
+        <td class="p-3 text-slate-400" data-label="Última compra">
           {% if c.ultimo %}
             {{ c.ultimo.strftime('%d/%m/%Y') }}
             {% if c.dias_sin_comprar is not none and c.dias_sin_comprar >= 30 and not c.activos %}

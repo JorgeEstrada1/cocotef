@@ -121,7 +121,7 @@
               {% endif %}
             {% endif %}
             <form method="post" action="{{ url_for('eliminar_inversion', iid=i.id) }}"
-                  onsubmit="return confirm('¿Eliminar esta inversión?')">
+                  data-confirm="¿Eliminar esta inversión?">
               <button class="text-rose-400 hover:text-rose-300 text-xs">Eliminar</button>
             </form>
           </div>

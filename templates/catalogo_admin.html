@@ -63,7 +63,7 @@
           </button>
         </form>
         <form method="post" action="{{ url_for('eliminar_producto_catalogo', prid=pr.id) }}"
-              onsubmit="return confirm('¿Eliminar «{{ pr.nombre }}» del catálogo?')">
+              data-confirm="¿Eliminar «{{ pr.nombre }}» del catálogo?">
           <button class="px-3 py-1.5 rounded-lg text-xs text-rose-400 hover:text-rose-300">Eliminar</button>
         </form>
       </div>

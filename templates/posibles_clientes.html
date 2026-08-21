@@ -87,7 +87,7 @@
       <input name="nota" value="{{ c.nota or '' }}" placeholder="Nota" class="{{ inp }} text-sm py-1.5 col-span-2">
       <button class="px-3 py-1.5 rounded-lg text-sm bg-base border border-edge text-slate-300 hover:bg-cardh">Guardar cambios</button>
       <button formaction="{{ url_for('eliminar_posible_cliente', cid=c.id) }}"
-              onclick="return confirm('¿Eliminar a «{{ c.nombre }}»?')"
+              data-confirm="¿Eliminar a «{{ c.nombre }}»?"
               class="px-3 py-1.5 rounded-lg text-sm text-rose-400 hover:text-rose-300">Eliminar</button>
     </form>
   </details>

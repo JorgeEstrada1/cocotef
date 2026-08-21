@@ -3,7 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#090d16">
   <title>Taller 3D — {% block titulo %}Gestión{% endblock %}</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🖨️</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -22,6 +27,7 @@
       },
     };
   </script>
+  {% block head %}{% endblock %}
   <style>
     body { background-color: #090d16; }
     /* Scrollbar oscuro */
@@ -31,90 +37,279 @@
     ::-webkit-scrollbar-thumb:hover { background: #2dd4bf; }
     /* Inputs oscuros por defecto */
     input, select { color-scheme: dark; }
+
+    /* --- Micro-interacciones globales --- */
+    button, a, summary, input, select { transition: all .15s ease; }
+    .bg-card { transition: border-color .2s ease, box-shadow .2s ease; }
+    main > * { animation: fadeUp .35s ease both; }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+    /* --- Toasts (avisos flotantes) --- */
+    .toast { animation: toastIn .25s ease both; }
+    .toast.saliendo { animation: toastOut .3s ease both; }
+    @keyframes toastIn  { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
+    @keyframes toastOut { from { opacity: 1; } to { opacity: 0; transform: translateX(24px); } }
+
+    /* --- Menú desplegable de la nav (hover + teclado) --- */
+    .menu-grupo .menu-panel { display: none; }
+    .menu-grupo:hover .menu-panel,
+    .menu-grupo:focus-within .menu-panel { display: block; }
+
+    /* --- Tablas que se vuelven tarjetas en el celular --- */
+    @media (max-width: 640px) {
+      table.tabla-resp thead { display: none; }
+      table.tabla-resp, table.tabla-resp tbody,
+      table.tabla-resp tr, table.tabla-resp td { display: block; width: 100%; }
+      table.tabla-resp tr {
+        border: 1px solid #232c42; border-radius: 12px;
+        margin: 0 8px 10px; width: auto; padding: 8px 12px; background: #151c2c;
+      }
+      table.tabla-resp td {
+        display: flex; justify-content: space-between; align-items: center; gap: 12px;
+        padding: 4px 0 !important; border: none !important; text-align: right;
+      }
+      table.tabla-resp td[data-label]::before {
+        content: attr(data-label); color: #64748b; font-size: 12px; text-align: left; flex-shrink: 0;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+    }
   </style>
 </head>
 <body class="bg-base text-slate-200 min-h-screen font-sans antialiased">
   {% if current_user.is_authenticated %}
+  {% set item = "px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-cardh hover:text-teal-300 transition" %}
+  {% set subitem = "block px-4 py-2.5 text-sm text-slate-300 hover:bg-cardh hover:text-teal-300 transition" %}
+  {% set badge = "absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[11px] font-bold text-white rounded-full ring-2 ring-card shadow-lg animate-pulse" %}
+  {% set inv_total = conteo_alertas + conteo_tienda %}
+
   <nav class="bg-card/80 backdrop-blur border-b border-edge sticky top-0 z-20">
-    <div class="max-w-6xl mx-auto px-4 flex flex-wrap items-center gap-1 py-3">
-      <span class="font-bold text-lg mr-4 flex items-center gap-2">
+    <div class="max-w-6xl mx-auto px-4 flex items-center gap-1 py-3">
+      <a href="{{ url_for('dashboard') }}" class="font-bold text-lg mr-2 lg:mr-4 flex items-center gap-2 shrink-0">
         <span class="text-teal-400">🖨️</span>
         <span class="bg-gradient-to-r from-teal-400 to-cyan-400 bg-clip-text text-transparent">Taller 3D</span>
-      </span>
-      {% set item = "px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-cardh hover:text-teal-300 transition" %}
-      <a href="{{ url_for('dashboard') }}" class="{{ item }}">Panel</a>
-      <a href="{{ url_for('proyectos') }}" class="{{ item }}">Proyectos / Ventas</a>
-      <a href="{{ url_for('calendario') }}" class="{{ item }}">📅 Agenda</a>
-      <a href="{{ url_for('posibles_clientes') }}" class="{{ item }} relative">
-        💬 Posibles clientes
-        {% if conteo_por_contestar > 0 %}
-        <span class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center
-                     text-[11px] font-bold text-white rounded-full bg-rose-500 ring-2 ring-card
-                     shadow-lg shadow-rose-500/40 animate-pulse">
-          {{ conteo_por_contestar }}
-        </span>
-        {% endif %}
       </a>
-      <a href="{{ url_for('filamentos') }}" class="{{ item }} relative">
-        Filamentos
-        {% if conteo_alertas > 0 %}
-        <span class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center
-                     text-[11px] font-bold text-white rounded-full bg-amber-500 ring-2 ring-card
-                     shadow-lg shadow-amber-500/40 animate-pulse">
-          {{ conteo_alertas }}
-        </span>
-        {% endif %}
-      </a>
-      <a href="{{ url_for('venta_filamentos') }}" class="{{ item }} relative">
-        🧵 Venta Filamentos
-        {% if conteo_tienda > 0 %}
-        <span class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center
-                     text-[11px] font-bold text-white rounded-full bg-amber-500 ring-2 ring-card
-                     shadow-lg shadow-amber-500/40 animate-pulse">
-          {{ conteo_tienda }}
-        </span>
-        {% endif %}
-      </a>
-      <a href="{{ url_for('catalogo_admin') }}" class="{{ item }}">🛍️ Catálogo</a>
-      <a href="{{ url_for('gastos') }}" class="{{ item }}">Gastos</a>
-      <a href="{{ url_for('impresoras') }}" class="{{ item }}">🖨️ Impresoras</a>
-      <a href="{{ url_for('inversiones') }}" class="{{ item }}">Deudas e Inversiones</a>
-      <a href="{{ url_for('balance') }}"
-         class="{{ item }} bg-gradient-to-r from-teal-500 to-cyan-500 !text-slate-900 font-semibold hover:opacity-90">
-        💰 Balance
-      </a>
-      <a href="{{ url_for('sistema') }}" class="{{ item }}">🔧 Sistema</a>
 
-      <div class="ml-auto flex items-center gap-3">
-        <span class="text-sm text-slate-400 hidden sm:inline">
+      <!-- ===== Nav escritorio ===== -->
+      <div class="hidden md:flex items-center gap-1 flex-1">
+        <a href="{{ url_for('dashboard') }}" class="{{ item }}">Panel</a>
+        <a href="{{ url_for('proyectos') }}" class="{{ item }}">Proyectos / Ventas</a>
+        <a href="{{ url_for('calendario') }}" class="{{ item }}">📅 Agenda</a>
+        <a href="{{ url_for('posibles_clientes') }}" class="{{ item }} relative">
+          💬 Posibles clientes
+          {% if conteo_por_contestar > 0 %}
+          <span class="{{ badge }} bg-rose-500 shadow-rose-500/40">{{ conteo_por_contestar }}</span>
+          {% endif %}
+        </a>
+
+        <!-- Inventario ▾ -->
+        <div class="relative menu-grupo">
+          <button type="button" class="{{ item }} relative flex items-center gap-1">
+            🧵 Inventario
+            <svg class="w-3 h-3 opacity-60" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="m6 9 6 6 6-6"/></svg>
+            {% if inv_total > 0 %}
+            <span class="{{ badge }} bg-amber-500 shadow-amber-500/40">{{ inv_total }}</span>
+            {% endif %}
+          </button>
+          <div class="menu-panel absolute left-0 top-full pt-1 z-30">
+            <div class="bg-card border border-edge rounded-xl shadow-2xl shadow-black/40 py-1.5 min-w-[230px]">
+              <a href="{{ url_for('filamentos') }}" class="{{ subitem }} flex items-center justify-between">
+                Filamentos del taller
+                {% if conteo_alertas > 0 %}<span class="text-[11px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300">{{ conteo_alertas }}</span>{% endif %}
+              </a>
+              <a href="{{ url_for('venta_filamentos') }}" class="{{ subitem }} flex items-center justify-between">
+                🧵 Venta de filamentos
+                {% if conteo_tienda > 0 %}<span class="text-[11px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300">{{ conteo_tienda }}</span>{% endif %}
+              </a>
+              <a href="{{ url_for('impresoras') }}" class="{{ subitem }}">🖨️ Impresoras</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Finanzas ▾ -->
+        <div class="relative menu-grupo">
+          <button type="button" class="{{ item }} flex items-center gap-1">
+            💰 Finanzas
+            <svg class="w-3 h-3 opacity-60" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <div class="menu-panel absolute left-0 top-full pt-1 z-30">
+            <div class="bg-card border border-edge rounded-xl shadow-2xl shadow-black/40 py-1.5 min-w-[210px]">
+              <a href="{{ url_for('balance') }}" class="{{ subitem }} font-semibold text-teal-300">💰 Balance</a>
+              <a href="{{ url_for('gastos') }}" class="{{ subitem }}">Gastos</a>
+              <a href="{{ url_for('inversiones') }}" class="{{ subitem }}">Deudas e Inversiones</a>
+            </div>
+          </div>
+        </div>
+
+        <a href="{{ url_for('catalogo_admin') }}" class="{{ item }}">🛍️ Catálogo</a>
+      </div>
+
+      <!-- ===== Lado derecho ===== -->
+      <div class="ml-auto flex items-center gap-2">
+        <span class="text-sm text-slate-400 hidden lg:inline">
           Hola, <b class="text-teal-300">{{ current_user.nombre }}</b>
         </span>
-        <span class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-slate-900"
+        <span class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-slate-900 shrink-0"
               style="background: {{ current_user.color }}">
           {{ current_user.nombre[0] | upper }}
         </span>
-        <a href="{{ url_for('logout') }}"
-           class="px-3 py-2 rounded-lg text-sm font-medium bg-rose-500/10 text-rose-300 border border-rose-500/30
-                  hover:bg-rose-500 hover:text-white transition flex items-center gap-1.5">
-          <span>⏻</span> Cerrar sesión
-        </a>
+        <a href="{{ url_for('sistema') }}" title="Sistema / Configuración"
+           class="hidden md:flex w-9 h-9 items-center justify-center rounded-lg text-slate-400 hover:bg-cardh hover:text-teal-300">🔧</a>
+        <a href="{{ url_for('logout') }}" title="Cerrar sesión"
+           class="hidden md:flex w-9 h-9 items-center justify-center rounded-lg text-rose-300/80 border border-transparent hover:bg-rose-500/10 hover:border-rose-500/30 hover:text-rose-300">⏻</a>
+
+        <!-- Hamburguesa (móvil) -->
+        <button type="button" id="btnMenu" aria-label="Abrir menú" aria-expanded="false"
+                class="md:hidden relative w-10 h-10 flex items-center justify-center rounded-lg text-slate-300 hover:bg-cardh">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
+          {% if conteo_por_contestar + inv_total > 0 %}
+          <span class="{{ badge }} bg-rose-500 shadow-rose-500/40">{{ conteo_por_contestar + inv_total }}</span>
+          {% endif %}
+        </button>
       </div>
+    </div>
+
+    <!-- ===== Menú móvil ===== -->
+    <div id="menuMovil" class="hidden md:hidden border-t border-edge bg-card/95 backdrop-blur px-3 py-2">
+      {% set mitem = "flex items-center justify-between px-3 py-2.5 rounded-lg text-[15px] text-slate-200 hover:bg-cardh" %}
+      {% set mbadge = "text-[11px] font-bold px-1.5 py-0.5 rounded-full" %}
+      <a href="{{ url_for('dashboard') }}" class="{{ mitem }}">Panel</a>
+      <a href="{{ url_for('proyectos') }}" class="{{ mitem }}">Proyectos / Ventas</a>
+      <a href="{{ url_for('calendario') }}" class="{{ mitem }}">📅 Agenda</a>
+      <a href="{{ url_for('posibles_clientes') }}" class="{{ mitem }}">💬 Posibles clientes
+        {% if conteo_por_contestar > 0 %}<span class="{{ mbadge }} bg-rose-500/20 text-rose-300">{{ conteo_por_contestar }}</span>{% endif %}
+      </a>
+      <p class="px-3 pt-3 pb-1 text-[11px] uppercase tracking-widest text-slate-600">Inventario</p>
+      <a href="{{ url_for('filamentos') }}" class="{{ mitem }}">Filamentos del taller
+        {% if conteo_alertas > 0 %}<span class="{{ mbadge }} bg-amber-500/20 text-amber-300">{{ conteo_alertas }}</span>{% endif %}
+      </a>
+      <a href="{{ url_for('venta_filamentos') }}" class="{{ mitem }}">🧵 Venta de filamentos
+        {% if conteo_tienda > 0 %}<span class="{{ mbadge }} bg-amber-500/20 text-amber-300">{{ conteo_tienda }}</span>{% endif %}
+      </a>
+      <a href="{{ url_for('impresoras') }}" class="{{ mitem }}">🖨️ Impresoras</a>
+      <p class="px-3 pt-3 pb-1 text-[11px] uppercase tracking-widest text-slate-600">Finanzas</p>
+      <a href="{{ url_for('balance') }}" class="{{ mitem }} font-semibold text-teal-300">💰 Balance</a>
+      <a href="{{ url_for('gastos') }}" class="{{ mitem }}">Gastos</a>
+      <a href="{{ url_for('inversiones') }}" class="{{ mitem }}">Deudas e Inversiones</a>
+      <p class="px-3 pt-3 pb-1 text-[11px] uppercase tracking-widest text-slate-600">Más</p>
+      <a href="{{ url_for('catalogo_admin') }}" class="{{ mitem }}">🛍️ Catálogo</a>
+      <a href="{{ url_for('sistema') }}" class="{{ mitem }}">🔧 Sistema</a>
+      <a href="{{ url_for('logout') }}" class="{{ mitem }} text-rose-300">⏻ Cerrar sesión</a>
     </div>
   </nav>
   {% endif %}
 
-  <main class="max-w-6xl mx-auto px-4 py-6">
-    {% with mensajes = get_flashed_messages(with_categories=true) %}
-      {% for cat, msg in mensajes %}
-        <div class="mb-4 px-4 py-3 rounded-lg text-sm border
-             {{ 'bg-rose-500/10 text-rose-300 border-rose-500/30' if cat == 'error'
-                else 'bg-teal-500/10 text-teal-300 border-teal-500/30' }}">
-          {{ msg }}
-        </div>
-      {% endfor %}
-    {% endwith %}
+  <!-- ===== Toasts (mensajes flotantes) ===== -->
+  {% with mensajes = get_flashed_messages(with_categories=true) %}
+  {% if mensajes %}
+  <div id="toasts" class="fixed top-4 right-4 z-[70] space-y-2 w-[min(92vw,380px)]">
+    {% for cat, msg in mensajes %}
+    <div class="toast flex items-start gap-2.5 px-4 py-3 rounded-xl text-sm border shadow-2xl shadow-black/40 backdrop-blur bg-card/95
+         {{ 'text-rose-200 border-rose-500/40' if cat == 'error' else 'text-teal-100 border-teal-500/40' }}"
+         data-durar="{{ '8000' if cat == 'error' else '4500' }}">
+      <span class="text-base leading-none mt-0.5">{{ '⚠️' if cat == 'error' else '✅' }}</span>
+      <span class="flex-1">{{ msg }}</span>
+      <button type="button" onclick="cerrarToast(this.parentElement)"
+              class="text-slate-500 hover:text-slate-300 leading-none">✕</button>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% endwith %}
 
+  <!-- ===== Modal de confirmación global ===== -->
+  <div id="modalConfirmar" class="hidden fixed inset-0 z-[80] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+    <div class="bg-card border border-edge rounded-2xl shadow-2xl max-w-sm w-full p-6" role="alertdialog" aria-modal="true">
+      <p class="text-2xl mb-2">🤔</p>
+      <p id="confirmarTexto" class="text-slate-100 font-medium mb-1"></p>
+      <p class="text-xs text-slate-500 mb-5">Esta acción no se puede deshacer.</p>
+      <div class="flex gap-3">
+        <button type="button" id="confirmarNo"
+                class="flex-1 px-4 py-2.5 rounded-lg bg-base border border-edge text-slate-300 hover:bg-cardh">Cancelar</button>
+        <button type="button" id="confirmarSi"
+                class="flex-1 px-4 py-2.5 rounded-lg font-semibold text-white bg-rose-500 hover:bg-rose-400">Sí, continuar</button>
+      </div>
+    </div>
+  </div>
+
+  <main class="max-w-6xl mx-auto px-4 py-6">
     {% block contenido %}{% endblock %}
   </main>
+
+  <script>
+    // ----- Menú móvil -----
+    const btnMenu = document.getElementById("btnMenu");
+    if (btnMenu) btnMenu.addEventListener("click", () => {
+      const panel = document.getElementById("menuMovil");
+      const abierto = panel.classList.toggle("hidden");
+      btnMenu.setAttribute("aria-expanded", String(!abierto));
+    });
+
+    // ----- Toasts: se van solos -----
+    function cerrarToast(t) {
+      t.classList.add("saliendo");
+      setTimeout(() => t.remove(), 300);
+    }
+    document.querySelectorAll("#toasts .toast").forEach(t => {
+      setTimeout(() => { if (t.isConnected) cerrarToast(t); },
+                 parseInt(t.dataset.durar || "4500", 10));
+    });
+
+    // ----- Confirmación con modal propio (reemplaza confirm() del navegador) -----
+    const modal = document.getElementById("modalConfirmar");
+    let accionPendiente = null;
+    function pedirConfirmacion(mensaje, alAceptar) {
+      document.getElementById("confirmarTexto").textContent = mensaje;
+      accionPendiente = alAceptar;
+      modal.classList.remove("hidden");
+      document.getElementById("confirmarNo").focus();
+    }
+    function cerrarModal() { modal.classList.add("hidden"); accionPendiente = null; }
+    document.getElementById("confirmarNo").addEventListener("click", cerrarModal);
+    modal.addEventListener("click", e => { if (e.target === modal) cerrarModal(); });
+    document.addEventListener("keydown", e => { if (e.key === "Escape") cerrarModal(); });
+    document.getElementById("confirmarSi").addEventListener("click", () => {
+      const accion = accionPendiente;
+      cerrarModal();
+      if (accion) accion();
+    });
+
+    // Formularios con data-confirm="mensaje"
+    document.addEventListener("submit", e => {
+      const form = e.target;
+      if (form.dataset.confirm && !form.dataset.confirmado) {
+        e.preventDefault();
+        pedirConfirmacion(form.dataset.confirm, () => {
+          form.dataset.confirmado = "1";
+          form.requestSubmit();
+        });
+        return;
+      }
+      // ----- Estado "guardando…" del botón que envió -----
+      const btn = e.submitter;
+      if (btn && !btn.dataset.sinLoading) {
+        setTimeout(() => {
+          btn.disabled = true;
+          btn.classList.add("opacity-60", "cursor-wait");
+          btn.dataset.txt = btn.innerHTML;
+          btn.innerHTML = "⏳ " + (btn.dataset.loading || "Guardando…");
+        }, 0);
+      }
+    }, true);
+
+    // Botones sueltos con data-confirm (ej. formaction de eliminar)
+    document.addEventListener("click", e => {
+      const btn = e.target.closest("button[data-confirm]");
+      if (btn && !btn.dataset.confirmado) {
+        e.preventDefault();
+        pedirConfirmacion(btn.dataset.confirm, () => {
+          btn.dataset.confirmado = "1";
+          btn.click();
+        });
+      }
+    }, true);
+  </script>
 </body>
 </html>

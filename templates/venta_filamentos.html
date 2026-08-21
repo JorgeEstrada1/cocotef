@@ -101,7 +101,7 @@
           <td class="text-right text-emerald-300 font-semibold">{{ a.monto | money }}</td>
           <td class="text-right">
             <form method="post" action="{{ url_for('eliminar_abono_deuda_filamentos', aid=a.id) }}"
-                  onsubmit="return confirm('¿Eliminar este abono?')" class="inline">
+                  data-confirm="¿Eliminar este abono?" class="inline">
               <button class="text-rose-400 hover:text-rose-300 text-xs">✕</button>
             </form>
           </td>
@@ -210,7 +210,7 @@
           <button class="px-3 py-1.5 rounded-lg text-sm bg-base border border-edge text-slate-300 hover:bg-cardh">Actualizar</button>
         </form>
         <form method="post" action="{{ url_for('eliminar_filamento_tienda', iid=i.id) }}"
-              onsubmit="return confirm('¿Eliminar «{{ i.nombre }}» de la tienda?')">
+              data-confirm="¿Eliminar «{{ i.nombre }}» de la tienda?">
           <button class="px-3 py-1.5 rounded-lg text-sm text-rose-400 hover:text-rose-300">Eliminar</button>
         </form>
       </div>
@@ -268,7 +268,7 @@
       <button class="px-3 py-1.5 rounded-lg text-xs bg-teal-500/15 text-teal-300 border border-teal-500/30 hover:bg-teal-500/25">✅ Cerrar</button>
     </form>
     <form method="post" action="{{ url_for('eliminar_encargo_filamento', eid=e.id) }}"
-          onsubmit="return confirm('¿Eliminar el encargo de «{{ e.cliente }}»?')">
+          data-confirm="¿Eliminar el encargo de «{{ e.cliente }}»?">
       <button class="text-rose-400 hover:text-rose-300 text-xs px-2">✕</button>
     </form>
   </div>
@@ -282,7 +282,7 @@
   <h2 class="font-semibold mb-3 text-slate-200">Últimas ventas</h2>
   {% if ventas %}
   <div class="overflow-x-auto">
-    <table class="w-full text-sm">
+    <table class="w-full text-sm tabla-resp">
       <thead>
         <tr class="text-left text-slate-500 border-b border-edge">
           <th class="py-2">Fecha</th><th>Filamento</th><th class="text-center">Cant.</th>
@@ -293,20 +293,20 @@
       <tbody>
         {% for v in ventas %}
         <tr class="border-b border-edge/50 hover:bg-cardh/50">
-          <td class="py-2 text-slate-400">{{ v.fecha.strftime('%d/%m/%Y') if v.fecha else '—' }}</td>
-          <td class="text-slate-200">
+          <td class="py-2 text-slate-400" data-label="Fecha">{{ v.fecha.strftime('%d/%m/%Y') if v.fecha else '—' }}</td>
+          <td class="text-slate-200" data-label="Filamento">
             {{ v.item_nombre }}
             {% if v.nota %}<span class="text-xs text-slate-500">· {{ v.nota }}</span>{% endif %}
           </td>
-          <td class="text-center text-slate-300">{{ v.cantidad }}</td>
-          <td class="text-right text-teal-300 font-semibold">{{ v.precio_total | money }}</td>
-          <td class="text-right {{ 'text-emerald-300' if v.abono_deuda else 'text-slate-600' }}">
+          <td class="text-center text-slate-300" data-label="Cantidad">{{ v.cantidad }}</td>
+          <td class="text-right text-teal-300 font-semibold" data-label="Total">{{ v.precio_total | money }}</td>
+          <td class="text-right {{ 'text-emerald-300' if v.abono_deuda else 'text-slate-600' }}" data-label="A deuda">
             {{ v.abono_deuda | money if v.abono_deuda else '—' }}
           </td>
-          <td class="text-slate-400">{{ v.usuario.nombre if v.usuario else '—' }}</td>
+          <td class="text-slate-400" data-label="Vendió">{{ v.usuario.nombre if v.usuario else '—' }}</td>
           <td class="text-right">
             <form method="post" action="{{ url_for('eliminar_venta_filamento', vid=v.id) }}"
-                  onsubmit="return confirm('¿Eliminar la venta? Se devuelve el stock y se revierte el abono a la deuda.')">
+                  data-confirm="¿Eliminar la venta? Se devuelve el stock y se revierte el abono a la deuda.">
               <button class="text-rose-400 hover:text-rose-300 text-xs">✕</button>
             </form>
           </td>

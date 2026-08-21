@@ -1,12 +1,21 @@
 {% extends "base.html" %}
 {% block titulo %}Catálogo{% endblock %}
+{% block head %}
+<meta property="og:title" content="Taller 3D — Catálogo">
+<meta property="og:description" content="Piezas impresas en 3D: llaveros, organizadores, figuras y encargos personalizados. Mira el catálogo y pide por WhatsApp 🖨️✨">
+<meta property="og:type" content="website">
+<meta property="og:url" content="{{ url_for('catalogo_publico', _external=True) }}">
+{% if og_imagen %}<meta property="og:image" content="{{ og_imagen }}">{% endif %}
+<meta name="description" content="Catálogo de piezas impresas en 3D del Taller 3D. Pedidos y encargos personalizados por WhatsApp.">
+{% endblock %}
 {% block contenido %}
-<div class="text-center mb-8">
-  <p class="text-4xl mb-2">🖨️</p>
-  <h1 class="text-3xl font-bold bg-gradient-to-r from-teal-400 to-cyan-400 bg-clip-text text-transparent">
+<div class="text-center mb-8 pt-2">
+  <p class="text-5xl mb-3">🖨️</p>
+  <h1 class="text-3xl sm:text-4xl font-extrabold bg-gradient-to-r from-teal-400 to-cyan-400 bg-clip-text text-transparent tracking-tight">
     Taller 3D — Catálogo
   </h1>
   <p class="text-slate-400 text-sm mt-2">Piezas impresas en 3D · Hechas con cariño en Bolivia 🇧🇴</p>
+  <div class="mt-3 h-1 w-24 mx-auto rounded-full bg-gradient-to-r from-teal-500 to-cyan-500"></div>
 </div>
 
 {% if productos %}

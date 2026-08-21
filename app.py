@@ -2005,8 +2005,12 @@ def registrar_rutas(app):
     def catalogo_publico():
         productos = (ProductoCatalogo.query.filter_by(disponible=True)
                      .order_by(ProductoCatalogo.orden, ProductoCatalogo.id).all())
+        # Imagen para la vista previa al compartir el link (Open Graph).
+        og_imagen = next(
+            (url_for("imagen_catalogo", filename=pr.imagen_filename, _external=True)
+             for pr in productos if pr.imagen_filename), None)
         return render_template("catalogo.html", productos=productos,
-                               whatsapp=_whatsapp_taller())
+                               whatsapp=_whatsapp_taller(), og_imagen=og_imagen)
 
     @app.route("/catalogo/imagen/<path:filename>")
     def imagen_catalogo(filename):

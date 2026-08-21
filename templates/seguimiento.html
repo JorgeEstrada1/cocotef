@@ -3,11 +3,28 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0f172a">
   <title>Seguimiento · {{ p.nombre }}</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🖨️</text></svg>">
+  <meta property="og:title" content="Tu pedido «{{ p.nombre }}» — Taller 3D">
+  <meta property="og:description" content="Mira en tiempo real en qué paso va tu pedido de impresión 3D 🖨️">
+  {% if p.imagen_filename %}
+  <meta property="og:image" content="{{ url_for('api_imagen', filename=p.imagen_filename, _external=True) }}">
+  {% endif %}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { theme: { extend: { fontFamily: { sans: ["Inter", "system-ui", "sans-serif"] } } } };</script>
+  <style>
+    .aparece { animation: aparecer .45s ease both; }
+    @keyframes aparecer { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+    .paso { animation: aparecer .4s ease both; }
+    @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+  </style>
 </head>
 <body class="bg-slate-900 text-slate-100 font-sans min-h-screen flex items-center justify-center p-4">
-  <div class="max-w-sm w-full bg-slate-800 rounded-2xl shadow-2xl border border-slate-700 overflow-hidden">
+  <div class="max-w-sm w-full bg-slate-800 rounded-2xl shadow-2xl border border-slate-700 overflow-hidden aparece">
     {% if p.imagen_filename %}
     <img src="{{ url_for('api_imagen', filename=p.imagen_filename) }}"
          class="w-full h-48 object-cover">
@@ -23,17 +40,22 @@
       {% if p.estado == 'Cancelado' %}
         <div class="bg-rose-500/10 border border-rose-500/30 rounded-xl p-4 text-center text-rose-300">Este pedido fue cancelado.</div>
       {% else %}
-      <div class="space-y-3">
+      <div>
         {% for paso in pasos %}
         {% set hecho = loop.index0 <= idx %}
         {% set actual = loop.index0 == idx %}
-        <div class="flex items-center gap-3">
-          <span class="w-7 h-7 rounded-full flex items-center justify-center text-sm shrink-0
-                {{ 'bg-teal-500 text-slate-900' if hecho else 'bg-slate-700 text-slate-500' }}
-                {{ 'ring-2 ring-teal-400 ring-offset-2 ring-offset-slate-800' if actual else '' }}">
-            {{ '✓' if hecho and not actual else loop.index }}
-          </span>
-          <span class="{{ 'text-slate-100 font-semibold' if actual else ('text-slate-300' if hecho else 'text-slate-500') }}">
+        <div class="flex items-stretch gap-3 paso" style="animation-delay: {{ loop.index0 * 80 }}ms">
+          <div class="flex flex-col items-center">
+            <span class="w-7 h-7 rounded-full flex items-center justify-center text-sm shrink-0
+                  {{ 'bg-teal-500 text-slate-900' if hecho else 'bg-slate-700 text-slate-500' }}
+                  {{ 'ring-2 ring-teal-400 ring-offset-2 ring-offset-slate-800 animate-pulse' if actual else '' }}">
+              {{ '✓' if hecho and not actual else loop.index }}
+            </span>
+            {% if not loop.last %}
+            <span class="w-0.5 flex-1 min-h-[14px] {{ 'bg-teal-500/60' if loop.index0 < idx else 'bg-slate-700' }}"></span>
+            {% endif %}
+          </div>
+          <span class="pb-4 {{ 'text-slate-100 font-semibold' if actual else ('text-slate-300' if hecho else 'text-slate-500') }}">
             {{ paso }}{% if actual %} <span class="text-teal-300 text-xs">← aquí</span>{% endif %}
           </span>
         </div>
@@ -42,8 +64,9 @@
       {% endif %}
 
       {% if p.fecha_entrega %}
-      <p class="text-center text-sm text-slate-400 mt-5">📅 Entrega estimada: <b class="text-slate-200">{{ p.fecha_entrega.strftime('%d/%m/%Y') }}</b></p>
+      <p class="text-center text-sm text-slate-400 mt-4">📅 Entrega estimada: <b class="text-slate-200">{{ p.fecha_entrega.strftime('%d/%m/%Y') }}</b></p>
       {% endif %}
+      <p class="text-center text-[11px] text-slate-600 mt-4">Impreso con cariño por Taller 3D 🇧🇴</p>
     </div>
   </div>
 </body>

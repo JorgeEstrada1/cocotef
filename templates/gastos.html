@@ -37,7 +37,7 @@
 </div>
 
 <div class="bg-card border border-edge rounded-xl shadow-lg overflow-x-auto">
-  <table class="w-full text-sm">
+  <table class="w-full text-sm tabla-resp">
     <thead class="bg-cardh text-slate-400 text-left">
       <tr><th class="p-3">Fecha</th><th class="p-3">Categoría</th><th class="p-3">Descripción</th>
           <th class="p-3">Pagó</th><th class="p-3">Monto</th><th class="p-3"></th></tr>
@@ -45,10 +45,10 @@
     <tbody>
       {% for g in gastos %}
       <tr class="border-t border-edge hover:bg-cardh/50">
-        <td class="p-3 text-slate-300">{{ g.fecha }}</td>
-        <td class="p-3 text-slate-300">{{ g.categoria }}</td>
-        <td class="p-3 text-slate-200">{{ g.descripcion or '—' }}</td>
-        <td class="p-3">
+        <td class="p-3 text-slate-300" data-label="Fecha">{{ g.fecha }}</td>
+        <td class="p-3 text-slate-300" data-label="Categoría">{{ g.categoria }}</td>
+        <td class="p-3 text-slate-200" data-label="Descripción">{{ g.descripcion or '—' }}</td>
+        <td class="p-3" data-label="Pagó">
           {% if g.usuario %}
             <span class="inline-flex items-center gap-1.5">
               <span class="w-2.5 h-2.5 rounded-full" style="background: {{ g.usuario.color }}"></span>
@@ -56,12 +56,12 @@
             </span>
           {% else %}<span class="text-slate-500">—</span>{% endif %}
         </td>
-        <td class="p-3 font-semibold text-rose-400">{{ g.monto | money }}</td>
+        <td class="p-3 font-semibold text-rose-400" data-label="Monto">{{ g.monto | money }}</td>
         <td class="p-3">
           <div class="flex items-center gap-3">
             <a href="{{ url_for('editar_gasto', gid=g.id) }}" class="text-teal-400 hover:text-teal-300">Editar</a>
             <form method="post" action="{{ url_for('eliminar_gasto', gid=g.id) }}"
-                  onsubmit="return confirm('¿Eliminar gasto?')">
+                  data-confirm="¿Eliminar gasto?">
               <button class="text-rose-400 hover:text-rose-300">Eliminar</button>
             </form>
           </div>

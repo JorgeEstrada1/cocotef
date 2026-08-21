@@ -41,7 +41,7 @@
 </div>
 
 <div class="bg-card border border-edge rounded-xl shadow-lg overflow-x-auto">
-  <table class="w-full text-sm">
+  <table class="w-full text-sm tabla-resp">
     <thead class="bg-cardh text-slate-400 text-left">
       <tr><th class="p-3">Fecha</th><th class="p-3">Descripción</th><th class="p-3">Método</th>
           <th class="p-3">Cobró</th><th class="p-3">Monto</th><th class="p-3"></th></tr>
@@ -49,12 +49,12 @@
     <tbody>
       {% for v in ventas %}
       <tr class="border-t border-edge hover:bg-cardh/50">
-        <td class="p-3 text-slate-300">{{ v.fecha }}</td>
-        <td class="p-3 text-slate-200">{{ v.descripcion or '—' }}
+        <td class="p-3 text-slate-300" data-label="Fecha">{{ v.fecha }}</td>
+        <td class="p-3 text-slate-200" data-label="Descripción">{{ v.descripcion or '—' }}
           {% if v.proyecto %}<span class="text-xs text-slate-500">· {{ v.proyecto.nombre }}</span>{% endif %}
         </td>
-        <td class="p-3 text-slate-300">{{ v.metodo_pago }}</td>
-        <td class="p-3">
+        <td class="p-3 text-slate-300" data-label="Método">{{ v.metodo_pago }}</td>
+        <td class="p-3" data-label="Cobró">
           {% if v.usuario %}
             <span class="inline-flex items-center gap-1.5">
               <span class="w-2.5 h-2.5 rounded-full" style="background: {{ v.usuario.color }}"></span>
@@ -62,12 +62,12 @@
             </span>
           {% else %}<span class="text-slate-500">—</span>{% endif %}
         </td>
-        <td class="p-3 font-semibold text-teal-400">{{ v.monto | money }}</td>
+        <td class="p-3 font-semibold text-teal-400" data-label="Monto">{{ v.monto | money }}</td>
         <td class="p-3">
           <div class="flex items-center gap-3">
             <a href="{{ url_for('editar_venta', vid=v.id) }}" class="text-teal-400 hover:text-teal-300">Editar</a>
             <form method="post" action="{{ url_for('eliminar_venta', vid=v.id) }}"
-                  onsubmit="return confirm('¿Eliminar venta?')">
+                  data-confirm="¿Eliminar venta?">
               <button class="text-rose-400 hover:text-rose-300">Eliminar</button>
             </form>
           </div>
