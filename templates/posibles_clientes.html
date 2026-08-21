@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block titulo %}Posibles clientes{% endblock %}
+{% block contenido %}
+{% set inp = "bg-base border border-edge rounded-lg px-3 py-2 text-slate-100 placeholder-slate-600 focus:border-teal-400 outline-none" %}
+<h1 class="text-2xl font-bold mb-6 text-slate-100">💬 Posibles clientes</h1>
+
+<!-- Agregar lead -->
+<div class="bg-card border border-edge rounded-xl shadow-lg p-5 mb-6">
+  <h2 class="font-semibold mb-3 text-slate-200">Anotar posible cliente</h2>
+  <form method="post" action="{{ url_for('nuevo_posible_cliente') }}"
+        class="grid grid-cols-2 md:grid-cols-6 gap-3">
+    <input name="nombre" placeholder="Nombre *" required class="{{ inp }}">
+    <input name="telefono" placeholder="WhatsApp (ej. 59171234567)" class="{{ inp }}">
+    <input name="fuente" placeholder="De dónde (IG, TikTok, feria...)" class="{{ inp }}">
+    <input name="interes" placeholder="Qué pregunta / qué quiere" class="{{ inp }} col-span-2">
+    <input name="fecha_mensaje" type="date" title="Cuándo escribió" class="{{ inp }}">
+    <button class="bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-900 font-semibold rounded-lg py-2 hover:opacity-90 col-span-2 md:col-span-1">
+      Guardar
+    </button>
+  </form>
+</div>
+
+{% macro tarjeta(c, borde) %}
+<div class="bg-card border {{ borde }} rounded-xl p-4">
+  <div class="flex items-start justify-between gap-2">
+    <div>
+      <h3 class="font-bold text-slate-100">{{ c.nombre }}</h3>
+      <p class="text-sm text-slate-400 mt-0.5">
+        {% if c.fuente %}<span class="text-cyan-300">{{ c.fuente }}</span> · {% endif %}
+        escribió {{ c.fecha_mensaje.strftime('%d/%m/%Y') if c.fecha_mensaje else '—' }}
+        {% if c.estado == 'Por contestar' %}
+          {% if c.dias_esperando >= 2 %}
+          <b class="text-rose-300">· lleva {{ c.dias_esperando }} días esperando ⏰</b>
+          {% elif c.dias_esperando == 1 %}
+          <b class="text-amber-300">· esperando desde ayer</b>
+          {% endif %}
+        {% endif %}
+      </p>
+      {% if c.interes %}<p class="text-sm text-slate-300 mt-1">💭 {{ c.interes }}</p>{% endif %}
+      {% if c.nota %}<p class="text-xs text-slate-500 mt-1">📝 {{ c.nota }}</p>{% endif %}
+    </div>
+    {% if c.telefono %}
+    <a href="https://wa.me/{{ c.telefono | replace(' ', '') | replace('+', '') }}?text={{ ('Hola ' ~ c.nombre ~ '! Te escribimos del taller de impresión 3D 🖨️') | urlencode }}"
+       target="_blank"
+       class="shrink-0 px-3 py-1.5 rounded-lg text-sm font-semibold bg-green-500/15 text-green-300 border border-green-500/30 hover:bg-green-500/25">
+      Responder 📲
+    </a>
+    {% endif %}
+  </div>
+
+  <div class="flex flex-wrap gap-2 mt-3">
+    {% if c.estado != 'Contestado' and c.estado != 'Convertido' %}
+    <form method="post" action="{{ url_for('estado_posible_cliente', cid=c.id) }}">
+      <input type="hidden" name="estado" value="Contestado">
+      <button class="px-3 py-1.5 rounded-lg text-sm bg-teal-500/15 text-teal-300 border border-teal-500/30 hover:bg-teal-500/25">✅ Contestado</button>
+    </form>
+    {% endif %}
+    {% if c.estado != 'Convertido' %}
+    <form method="post" action="{{ url_for('estado_posible_cliente', cid=c.id) }}">
+      <input type="hidden" name="estado" value="Convertido">
+      <button class="px-3 py-1.5 rounded-lg text-sm bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25">⭐ Se convirtió en cliente</button>
+    </form>
+    {% endif %}
+    {% if c.estado == 'Por contestar' or c.estado == 'Contestado' %}
+    <form method="post" action="{{ url_for('estado_posible_cliente', cid=c.id) }}">
+      <input type="hidden" name="estado" value="Perdido">
+      <button class="px-3 py-1.5 rounded-lg text-sm text-slate-500 hover:text-slate-300">❌ Perdido</button>
+    </form>
+    {% else %}
+    <form method="post" action="{{ url_for('estado_posible_cliente', cid=c.id) }}">
+      <input type="hidden" name="estado" value="Por contestar">
+      <button class="px-3 py-1.5 rounded-lg text-sm text-slate-500 hover:text-amber-300">↩️ Volver a pendiente</button>
+    </form>
+    {% endif %}
+  </div>
+
+  <details class="mt-2">
+    <summary class="text-xs text-slate-500 cursor-pointer hover:text-teal-300">Editar datos</summary>
+    <form method="post" action="{{ url_for('editar_posible_cliente', cid=c.id) }}"
+          class="grid grid-cols-2 gap-2 mt-2">
+      <input name="nombre" value="{{ c.nombre }}" required class="{{ inp }} text-sm py-1.5">
+      <input name="telefono" value="{{ c.telefono or '' }}" placeholder="WhatsApp" class="{{ inp }} text-sm py-1.5">
+      <input name="fuente" value="{{ c.fuente or '' }}" placeholder="De dónde" class="{{ inp }} text-sm py-1.5">
+      <input name="interes" value="{{ c.interes or '' }}" placeholder="Qué quiere" class="{{ inp }} text-sm py-1.5">
+      <input name="nota" value="{{ c.nota or '' }}" placeholder="Nota" class="{{ inp }} text-sm py-1.5 col-span-2">
+      <button class="px-3 py-1.5 rounded-lg text-sm bg-base border border-edge text-slate-300 hover:bg-cardh">Guardar cambios</button>
+      <button formaction="{{ url_for('eliminar_posible_cliente', cid=c.id) }}"
+              onclick="return confirm('¿Eliminar a «{{ c.nombre }}»?')"
+              class="px-3 py-1.5 rounded-lg text-sm text-rose-400 hover:text-rose-300">Eliminar</button>
+    </form>
+  </details>
+</div>
+{% endmacro %}
+
+<!-- Por contestar -->
+<h2 class="font-semibold text-slate-200 mb-3 flex items-center gap-2">
+  ⏳ Por contestar
+  {% if pendientes %}
+  <span class="text-xs px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-300 border border-rose-500/30">{{ pendientes | length }}</span>
+  {% endif %}
+</h2>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+  {% for c in pendientes %}
+    {{ tarjeta(c, 'border-amber-500/40') }}
+  {% else %}
+  <p class="text-slate-500 col-span-2">🎉 Nadie espera respuesta. ¡Bandeja limpia!</p>
+  {% endfor %}
+</div>
+
+<!-- Contestados (en conversación) -->
+{% if contestados %}
+<h2 class="font-semibold text-slate-200 mb-3">💬 En conversación ({{ contestados | length }})</h2>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+  {% for c in contestados %}{{ tarjeta(c, 'border-edge') }}{% endfor %}
+</div>
+{% endif %}
+
+<!-- Cerrados -->
+{% if cerrados %}
+<details>
+  <summary class="font-semibold text-slate-400 cursor-pointer hover:text-teal-300 mb-3">
+    📁 Historial: convertidos y perdidos ({{ cerrados | length }})
+  </summary>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+    {% for c in cerrados %}
+      {{ tarjeta(c, 'border-emerald-500/30' if c.estado == 'Convertido' else 'border-edge opacity-70') }}
+    {% endfor %}
+  </div>
+</details>
+{% endif %}
+{% endblock %}

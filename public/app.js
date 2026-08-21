@@ -470,7 +470,12 @@ async function cargarTodo() {
 // ==========================================================================
 let feriaActual = null;   // {id, ...} de la feria abierta en el POS
 
-function money(v) { return "Bs. " + Math.round(Number(v || 0)).toLocaleString("es-BO"); }
+// Conserva los decimales cuando existen (Bs. 120.50) y los omite si es entero.
+function money(v) {
+  const n = Number(v || 0);
+  const dec = Number.isInteger(n) ? 0 : 2;
+  return "Bs. " + n.toLocaleString("es-BO", { minimumFractionDigits: dec, maximumFractionDigits: dec });
+}
 
 async function feriasFetch(path, opts) {
   const o = opts || {};

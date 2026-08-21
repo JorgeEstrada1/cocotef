@@ -32,7 +32,16 @@ from models import (db, User, Filamento, Proyecto, Venta, Gasto,
                     Feria, FeriaInventario, FeriaVenta,
                     FotoPedido, Impresora,
                     FilamentoTienda, VentaFilamento,
-                    DeudaFilamento, AbonoDeudaFilamento)
+                    DeudaFilamento, AbonoDeudaFilamento,
+                    PosibleCliente)
+
+
+def fmt_bs(v):
+    """Formatea Bolivianos conservando decimales solo cuando existen."""
+    v = float(v or 0)
+    if v == int(v):
+        return "Bs. {:,.0f}".format(v)
+    return "Bs. {:,.2f}".format(v)
 
 MESES = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
          "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
@@ -490,11 +499,13 @@ def registrar_rutas(app):
     # ---------- Contexto global (disponible en TODAS las plantillas) ----------
     @app.context_processor
     def inyectar_alertas_stock():
-        """Cuenta filamentos bajo stock mínimo para el badge de la nav."""
+        """Badges de la nav: filamentos bajo stock y leads por contestar."""
         if not current_user.is_authenticated:
-            return {"conteo_alertas": 0}
+            return {"conteo_alertas": 0, "conteo_por_contestar": 0}
         conteo = sum(1 for f in Filamento.query.all() if f.bajo_stock)
-        return {"conteo_alertas": conteo}
+        por_contestar = PosibleCliente.query.filter_by(
+            estado="Por contestar").count()
+        return {"conteo_alertas": conteo, "conteo_por_contestar": por_contestar}
 
     # ---------- Autenticación ----------
     @app.route("/login", methods=["GET", "POST"])
@@ -1960,6 +1971,72 @@ def registrar_rutas(app):
         db.session.commit()
         return redirect(url_for("filamentos"))
 
+    # ---------- Posibles clientes (leads / mensajes por contestar) ----------
+    @app.route("/posibles-clientes")
+    @login_required
+    def posibles_clientes():
+        todos = (PosibleCliente.query
+                 .order_by(PosibleCliente.fecha_mensaje.asc(),
+                           PosibleCliente.id.asc()).all())
+        pendientes = [c for c in todos if c.estado == "Por contestar"]
+        contestados = [c for c in todos if c.estado == "Contestado"]
+        cerrados = [c for c in todos if c.estado in ("Convertido", "Perdido")]
+        return render_template("posibles_clientes.html",
+                               pendientes=pendientes,
+                               contestados=contestados,
+                               cerrados=cerrados,
+                               estados=PosibleCliente.ESTADOS)
+
+    @app.route("/posibles-clientes/nuevo", methods=["POST"])
+    @login_required
+    def nuevo_posible_cliente():
+        f = request.form
+        nombre = (f.get("nombre") or "").strip()
+        if not nombre:
+            flash("El nombre del posible cliente es obligatorio.", "error")
+            return redirect(url_for("posibles_clientes"))
+        db.session.add(PosibleCliente(
+            nombre=nombre,
+            telefono=(f.get("telefono") or "").strip() or None,
+            fuente=(f.get("fuente") or "").strip() or None,
+            interes=(f.get("interes") or "").strip() or None,
+            fecha_mensaje=_parse_fecha_opt(f.get("fecha_mensaje")) or date.today()))
+        db.session.commit()
+        flash(f"«{nombre}» agregado a posibles clientes.", "ok")
+        return redirect(url_for("posibles_clientes"))
+
+    @app.route("/posibles-clientes/<int:cid>/estado", methods=["POST"])
+    @login_required
+    def estado_posible_cliente(cid):
+        c = PosibleCliente.query.get_or_404(cid)
+        nuevo = (request.form.get("estado") or "").strip()
+        if nuevo in PosibleCliente.ESTADOS:
+            c.estado = nuevo
+            db.session.commit()
+            flash(f"«{c.nombre}» → {nuevo}.", "ok")
+        return redirect(url_for("posibles_clientes"))
+
+    @app.route("/posibles-clientes/<int:cid>/editar", methods=["POST"])
+    @login_required
+    def editar_posible_cliente(cid):
+        c = PosibleCliente.query.get_or_404(cid)
+        f = request.form
+        c.nombre = (f.get("nombre") or c.nombre).strip()
+        c.telefono = (f.get("telefono") or "").strip() or None
+        c.fuente = (f.get("fuente") or "").strip() or None
+        c.interes = (f.get("interes") or "").strip() or None
+        c.nota = (f.get("nota") or "").strip() or None
+        db.session.commit()
+        flash(f"«{c.nombre}» actualizado.", "ok")
+        return redirect(url_for("posibles_clientes"))
+
+    @app.route("/posibles-clientes/<int:cid>/eliminar", methods=["POST"])
+    @login_required
+    def eliminar_posible_cliente(cid):
+        db.session.delete(PosibleCliente.query.get_or_404(cid))
+        db.session.commit()
+        return redirect(url_for("posibles_clientes"))
+
     # ---------- Venta de Filamentos (reventa de rollos + deuda Sirley) ----------
     def _deuda_filamentos():
         """Devuelve la deuda configurada (una sola) o None."""
@@ -2064,9 +2141,9 @@ def registrar_rutas(app):
                     nota=f"Venta: {item.nombre} x{cantidad}"))
         db.session.commit()
 
-        msg = f"Vendido {item.nombre} x{cantidad} por Bs. {precio_total:,.0f}."
+        msg = f"Vendido {item.nombre} x{cantidad} por {fmt_bs(precio_total)}."
         if venta.abono_deuda:
-            msg += f" Se abonaron Bs. {venta.abono_deuda:,.0f} a la deuda."
+            msg += f" Se abonaron {fmt_bs(venta.abono_deuda)} a la deuda."
         flash(msg, "ok")
         return redirect(url_for("venta_filamentos"))
 
@@ -2117,7 +2194,7 @@ def registrar_rutas(app):
             deuda_id=deuda.id, monto=monto,
             nota=(request.form.get("nota") or "").strip() or "Abono manual"))
         db.session.commit()
-        flash(f"Abono de Bs. {monto:,.0f} registrado.", "ok")
+        flash(f"Abono de {fmt_bs(monto)} registrado.", "ok")
         return redirect(url_for("venta_filamentos"))
 
     @app.route("/venta-filamentos/deuda/abonos/<int:aid>/eliminar", methods=["POST"])
@@ -2333,12 +2410,12 @@ def registrar_rutas(app):
 
         remanente = round(sug["monto"] - monto, 2)
         if remanente <= 0:
-            flash(f"{sug['pagador'].nombre} le pagó Bs. {monto:,.0f} a "
+            flash(f"{sug['pagador'].nombre} le pagó {fmt_bs(monto)} a "
                   f"{sug['receptor'].nombre}. Cuentas saldadas ✔", "ok")
         else:
-            flash(f"Pago parcial de Bs. {monto:,.0f} registrado "
+            flash(f"Pago parcial de {fmt_bs(monto)} registrado "
                   f"({sug['pagador'].nombre} → {sug['receptor'].nombre}). "
-                  f"Saldo remanente del mes: Bs. {remanente:,.0f}.", "ok")
+                  f"Saldo remanente del mes: {fmt_bs(remanente)}.", "ok")
         return redirect(url_for("balance", periodo=periodo_str(anio, mes)))
 
     @app.route("/balance/liquidar/<int:lid>/eliminar", methods=["POST"])
@@ -2426,11 +2503,11 @@ def registrar_rutas(app):
         db.session.commit()
 
         if inv.estado == "Saldada":
-            flash(f"Abono de Bs. {monto:,.0f} registrado. "
+            flash(f"Abono de {fmt_bs(monto)} registrado. "
                   f"Deuda de «{inv.descripcion}» saldada por completo ✔", "ok")
         else:
-            flash(f"Abono de Bs. {monto:,.0f} registrado. "
-                  f"Saldo restante: Bs. {inv.deuda_pendiente:,.0f}.", "ok")
+            flash(f"Abono de {fmt_bs(monto)} registrado. "
+                  f"Saldo restante: {fmt_bs(inv.deuda_pendiente)}.", "ok")
         return redirect(url_for("inversiones"))
 
     @app.route("/inversiones/<int:iid>/eliminar", methods=["POST"])
@@ -2591,11 +2668,13 @@ def registrar_rutas(app):
             flash(f"Error al recargar la web: {e}", "error")
         return redirect(url_for("sistema"))
 
-    # Filtro para formatear plata en las plantillas (moneda: Bolivianos)
+    # Filtro para formatear plata en las plantillas (moneda: Bolivianos).
+    # Conserva los decimales cuando existen (ej. Bs. 120.50) y los omite
+    # cuando el monto es entero (ej. Bs. 120).
     @app.template_filter("money")
     def money(v):
         try:
-            return "Bs. {:,.0f}".format(float(v or 0))
+            return fmt_bs(v)
         except (ValueError, TypeError):
             return "Bs. 0"
 

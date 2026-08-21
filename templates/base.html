@@ -45,6 +45,16 @@
       <a href="{{ url_for('dashboard') }}" class="{{ item }}">Panel</a>
       <a href="{{ url_for('proyectos') }}" class="{{ item }}">Proyectos / Ventas</a>
       <a href="{{ url_for('calendario') }}" class="{{ item }}">📅 Agenda</a>
+      <a href="{{ url_for('posibles_clientes') }}" class="{{ item }} relative">
+        💬 Posibles clientes
+        {% if conteo_por_contestar > 0 %}
+        <span class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center
+                     text-[11px] font-bold text-white rounded-full bg-rose-500 ring-2 ring-card
+                     shadow-lg shadow-rose-500/40 animate-pulse">
+          {{ conteo_por_contestar }}
+        </span>
+        {% endif %}
+      </a>
       <a href="{{ url_for('filamentos') }}" class="{{ item }} relative">
         Filamentos
         {% if conteo_alertas > 0 %}

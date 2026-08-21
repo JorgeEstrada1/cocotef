@@ -654,6 +654,36 @@ class DeudaFilamento(db.Model):
         return f"<DeudaFilamento {self.acreedor} pendiente={self.pendiente}>"
 
 
+class PosibleCliente(db.Model):
+    """
+    Lead / posible cliente: gente que escribió preguntando y a la que hay que
+    responder o hacer seguimiento antes de que se enfríe.
+    """
+    __tablename__ = "posibles_clientes"
+
+    ESTADOS = ["Por contestar", "Contestado", "Convertido", "Perdido"]
+
+    id = db.Column(db.Integer, primary_key=True)
+    nombre = db.Column(db.String(120), nullable=False)
+    telefono = db.Column(db.String(40))                       # WhatsApp
+    fuente = db.Column(db.String(60))                         # Instagram, TikTok, feria...
+    interes = db.Column(db.String(200))                       # qué preguntó / qué quiere
+    estado = db.Column(db.String(20), default="Por contestar")
+    nota = db.Column(db.String(200))
+    fecha_mensaje = db.Column(db.Date, default=date.today)    # cuándo escribió
+    creado = db.Column(db.DateTime, default=datetime.utcnow)
+
+    @property
+    def dias_esperando(self):
+        """Días desde que escribió (para priorizar a quién contestar)."""
+        if not self.fecha_mensaje:
+            return 0
+        return max((date.today() - self.fecha_mensaje).days, 0)
+
+    def __repr__(self):
+        return f"<PosibleCliente {self.nombre} ({self.estado})>"
+
+
 class AbonoDeudaFilamento(db.Model):
     """Cada abono a la deuda: automático (ligado a una venta) o manual."""
     __tablename__ = "abonos_deuda_filamentos"
