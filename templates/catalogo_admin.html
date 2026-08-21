@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block titulo %}Catálogo (admin){% endblock %}
+{% block contenido %}
+{% set inp = "bg-base border border-edge rounded-lg px-3 py-2 text-slate-100 placeholder-slate-600 focus:border-teal-400 outline-none" %}
+<div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+  <h1 class="text-2xl font-bold text-slate-100">🛍️ Catálogo público</h1>
+  <div class="flex items-center gap-2">
+    <a href="{{ url_for('catalogo_publico') }}" target="_blank"
+       class="px-3 py-2 rounded-lg bg-card border border-edge text-slate-300 text-sm hover:bg-cardh">👁️ Ver como cliente</a>
+    <button onclick="navigator.clipboard.writeText('{{ url_for('catalogo_publico', _external=True) }}'); this.textContent='✅ Copiado';"
+            class="px-3 py-2 rounded-lg text-sm font-semibold bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-900 hover:opacity-90">
+      🔗 Copiar link para compartir
+    </button>
+  </div>
+</div>
+
+{% if not whatsapp %}
+<div class="mb-6 px-4 py-3 rounded-xl border border-amber-500/30 bg-amber-500/10 text-sm text-amber-200">
+  💡 Para que el catálogo muestre el botón "Pedir 📲", define la variable de entorno
+  <code class="text-amber-100">TALLER_WHATSAPP</code> con el número (ej. <code class="text-amber-100">59171234567</code>)
+  en el archivo WSGI de PythonAnywhere.
+</div>
+{% endif %}
+
+<div class="bg-card border border-edge rounded-xl shadow-lg p-5 mb-6">
+  <h2 class="font-semibold mb-3 text-slate-200">Agregar producto</h2>
+  <form method="post" action="{{ url_for('nuevo_producto_catalogo') }}" enctype="multipart/form-data"
+        class="grid grid-cols-2 md:grid-cols-6 gap-3">
+    <input name="nombre" placeholder="Nombre *" required class="{{ inp }}">
+    <input name="precio" type="number" step="0.5" min="0" placeholder="Precio Bs." class="{{ inp }}">
+    <input name="descripcion" placeholder="Descripción corta" class="{{ inp }} col-span-2">
+    <input name="imagen" type="file" accept=".jpg,.jpeg,.png,.webp"
+           class="{{ inp }} text-sm file:mr-2 file:px-2 file:py-1 file:rounded file:border-0 file:bg-cardh file:text-slate-300">
+    <button class="bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-900 font-semibold rounded-lg py-2 hover:opacity-90">
+      Guardar
+    </button>
+  </form>
+</div>
+
+<div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+  {% for pr in productos %}
+  <div class="bg-card border {{ 'border-edge' if pr.disponible else 'border-rose-500/30 opacity-70' }} rounded-2xl overflow-hidden shadow-lg">
+    {% if pr.imagen_filename %}
+    <img src="{{ url_for('imagen_catalogo', filename=pr.imagen_filename) }}"
+         alt="{{ pr.nombre }}" class="w-full aspect-square object-cover bg-base">
+    {% else %}
+    <div class="w-full aspect-square bg-base flex items-center justify-center text-5xl">🧩</div>
+    {% endif %}
+    <div class="p-3">
+      <div class="flex items-center justify-between">
+        <h3 class="font-bold text-slate-100">{{ pr.nombre }}</h3>
+        <span class="font-bold text-teal-300">{{ pr.precio | money }}</span>
+      </div>
+      {% if pr.descripcion %}<p class="text-xs text-slate-400 mt-1">{{ pr.descripcion }}</p>{% endif %}
+      {% if not pr.disponible %}
+      <p class="text-xs text-rose-300 mt-1">🚫 Oculto del catálogo público</p>
+      {% endif %}
+
+      <div class="flex flex-wrap gap-2 mt-3">
+        <form method="post" action="{{ url_for('alternar_producto_catalogo', prid=pr.id) }}">
+          <button class="px-3 py-1.5 rounded-lg text-xs {{ 'bg-rose-500/15 text-rose-300 border border-rose-500/30 hover:bg-rose-500/25' if pr.disponible else 'bg-teal-500/15 text-teal-300 border border-teal-500/30 hover:bg-teal-500/25' }}">
+            {{ '🙈 Ocultar' if pr.disponible else '👁️ Mostrar' }}
+          </button>
+        </form>
+        <form method="post" action="{{ url_for('eliminar_producto_catalogo', prid=pr.id) }}"
+              onsubmit="return confirm('¿Eliminar «{{ pr.nombre }}» del catálogo?')">
+          <button class="px-3 py-1.5 rounded-lg text-xs text-rose-400 hover:text-rose-300">Eliminar</button>
+        </form>
+      </div>
+
+      <details class="mt-2">
+        <summary class="text-xs text-slate-500 cursor-pointer hover:text-teal-300">Editar</summary>
+        <form method="post" action="{{ url_for('editar_producto_catalogo', prid=pr.id) }}"
+              enctype="multipart/form-data" class="grid gap-2 mt-2">
+          <input name="nombre" value="{{ pr.nombre }}" required class="{{ inp }} text-sm py-1.5">
+          <input name="precio" type="number" step="0.5" min="0" value="{{ pr.precio or '' }}" placeholder="Precio Bs." class="{{ inp }} text-sm py-1.5">
+          <input name="descripcion" value="{{ pr.descripcion or '' }}" placeholder="Descripción" class="{{ inp }} text-sm py-1.5">
+          <input name="orden" type="number" step="1" value="{{ pr.orden or 0 }}" title="Orden de aparición (menor = primero)" class="{{ inp }} text-sm py-1.5">
+          <input name="imagen" type="file" accept=".jpg,.jpeg,.png,.webp" class="{{ inp }} text-xs">
+          <button class="px-3 py-1.5 rounded-lg text-sm bg-base border border-edge text-slate-300 hover:bg-cardh">Guardar cambios</button>
+        </form>
+      </details>
+    </div>
+  </div>
+  {% else %}
+  <p class="text-slate-500 col-span-3">El catálogo está vacío. Agrega el primer producto arriba y comparte el link 🚀</p>
+  {% endfor %}
+</div>
+{% endblock %}

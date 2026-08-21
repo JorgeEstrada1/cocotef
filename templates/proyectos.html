@@ -1,7 +1,13 @@
 {% extends "base.html" %}
 {% block titulo %}Proyectos / Ventas{% endblock %}
 {% block contenido %}
-<h1 class="text-2xl font-bold mb-6 text-slate-100">Proyectos / Ventas</h1>
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-2xl font-bold text-slate-100">Proyectos / Ventas</h1>
+  <a href="{{ url_for('clientes') }}"
+     class="px-3 py-2 rounded-lg bg-card border border-edge text-slate-300 text-sm hover:bg-cardh hover:text-teal-300">
+    👥 Ranking de clientes
+  </a>
+</div>
 
 {% set inp = "bg-base border border-edge rounded-lg px-3 py-2 text-slate-100 placeholder-slate-600 focus:border-teal-400 focus:ring-2 focus:ring-teal-500/20 outline-none" %}
 

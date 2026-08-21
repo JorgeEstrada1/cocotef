@@ -65,7 +65,17 @@
         </span>
         {% endif %}
       </a>
-      <a href="{{ url_for('venta_filamentos') }}" class="{{ item }}">🧵 Venta Filamentos</a>
+      <a href="{{ url_for('venta_filamentos') }}" class="{{ item }} relative">
+        🧵 Venta Filamentos
+        {% if conteo_tienda > 0 %}
+        <span class="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center
+                     text-[11px] font-bold text-white rounded-full bg-amber-500 ring-2 ring-card
+                     shadow-lg shadow-amber-500/40 animate-pulse">
+          {{ conteo_tienda }}
+        </span>
+        {% endif %}
+      </a>
+      <a href="{{ url_for('catalogo_admin') }}" class="{{ item }}">🛍️ Catálogo</a>
       <a href="{{ url_for('gastos') }}" class="{{ item }}">Gastos</a>
       <a href="{{ url_for('impresoras') }}" class="{{ item }}">🖨️ Impresoras</a>
       <a href="{{ url_for('inversiones') }}" class="{{ item }}">Deudas e Inversiones</a>

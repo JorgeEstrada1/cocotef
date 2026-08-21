@@ -34,6 +34,8 @@
           {% elif c.dias_esperando == 1 %}
           <b class="text-amber-300">· esperando desde ayer</b>
           {% endif %}
+        {% elif c.necesita_seguimiento %}
+          <b class="text-amber-300">· {{ c.dias_sin_novedad }} días sin avance — escríbele de nuevo 🔄</b>
         {% endif %}
       </p>
       {% if c.interes %}<p class="text-sm text-slate-300 mt-1">💭 {{ c.interes }}</p>{% endif %}
@@ -106,6 +108,18 @@
   <p class="text-slate-500 col-span-2">🎉 Nadie espera respuesta. ¡Bandeja limpia!</p>
   {% endfor %}
 </div>
+
+<!-- Seguimiento: contestados que se están enfriando -->
+{% if seguimiento %}
+<h2 class="font-semibold text-slate-200 mb-3 flex items-center gap-2">
+  🔄 Retomar conversación
+  <span class="text-xs px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">{{ seguimiento | length }}</span>
+  <span class="text-xs text-slate-500 font-normal">— contestados hace días y sin avance</span>
+</h2>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+  {% for c in seguimiento %}{{ tarjeta(c, 'border-amber-500/40') }}{% endfor %}
+</div>
+{% endif %}
 
 <!-- Contestados (en conversación) -->
 {% if contestados %}

@@ -27,6 +27,55 @@
   </div>
 </div>
 
+<!-- ===================== INGRESOS POR LÍNEA DE NEGOCIO ===================== -->
+<div class="bg-card border border-edge rounded-xl shadow-lg p-5 mb-8">
+  <h2 class="font-semibold text-slate-200 mb-1">📊 Ingresos por línea de negocio (últimos 6 meses)</h2>
+  <p class="text-xs text-slate-500 mb-4">
+    <span class="inline-block w-2.5 h-2.5 rounded-sm bg-teal-400"></span> Pedidos ·
+    <span class="inline-block w-2.5 h-2.5 rounded-sm bg-violet-400"></span> Ferias ·
+    <span class="inline-block w-2.5 h-2.5 rounded-sm bg-amber-400"></span> Venta de filamentos
+  </p>
+  <div class="flex items-end gap-2 sm:gap-4 h-40">
+    {% for l in lineas %}
+    <div class="flex-1 flex flex-col items-center gap-1 h-full justify-end"
+         title="{{ l.etiqueta }} — Pedidos: {{ l.pedidos | money }} · Ferias: {{ l.ferias | money }} · Filamentos: {{ l.filamentos | money }}">
+      <span class="text-[10px] text-slate-400">{{ l.total | money if l.total else '' }}</span>
+      <div class="w-full max-w-[52px] flex flex-col justify-end rounded-t-md overflow-hidden"
+           style="height: {{ (l.total / max_linea * 100) | round(1) }}%">
+        {% if l.total %}
+        <div class="w-full bg-amber-400" style="height: {{ (l.filamentos / l.total * 100) | round(1) }}%"></div>
+        <div class="w-full bg-violet-400" style="height: {{ (l.ferias / l.total * 100) | round(1) }}%"></div>
+        <div class="w-full bg-teal-400" style="height: {{ (l.pedidos / l.total * 100) | round(1) }}%"></div>
+        {% else %}
+        <div class="w-full h-1 bg-cardh rounded"></div>
+        {% endif %}
+      </div>
+      <span class="text-[11px] {{ 'text-teal-300 font-bold' if loop.last else 'text-slate-500' }}">{{ l.etiqueta }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% set actual = lineas[-1] %}
+  <div class="grid grid-cols-3 gap-3 mt-4 text-center text-sm">
+    <div class="bg-base border border-edge rounded-lg py-2">
+      <p class="text-xs text-slate-500">Pedidos ({{ per.periodo_label }})</p>
+      <p class="font-bold text-teal-300">{{ actual.pedidos | money }}</p>
+    </div>
+    <div class="bg-base border border-edge rounded-lg py-2">
+      <p class="text-xs text-slate-500">Ferias</p>
+      <p class="font-bold text-violet-300">{{ actual.ferias | money }}</p>
+    </div>
+    <div class="bg-base border border-edge rounded-lg py-2">
+      <p class="text-xs text-slate-500">Filamentos</p>
+      <p class="font-bold text-amber-300">{{ actual.filamentos | money }}</p>
+    </div>
+  </div>
+  <p class="text-xs text-slate-600 mt-3">
+    Pedidos usa la regla contable del balance (solo entregados/saldados). Ferias y filamentos
+    suman sus ventas registradas en el mes; son módulos aparte y no entran en la ganancia neta de arriba.
+  </p>
+</div>
+<!-- =================== FIN LÍNEAS DE NEGOCIO =================== -->
+
 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
   {% for s in bal.socios %}
   <div class="bg-card border border-edge rounded-xl shadow-lg p-6 border-t-4" style="border-top-color: {{ s.usuario.color }}">

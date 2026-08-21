@@ -578,7 +578,12 @@ class FilamentoTienda(db.Model):
     cantidad = db.Column(db.Integer, default=0)               # rollos en stock
     costo_unitario = db.Column(db.Float, default=0.0)         # lo que costó cada rollo (Bs.)
     precio_venta = db.Column(db.Float, default=0.0)           # precio al público (Bs.)
+    stock_minimo = db.Column(db.Integer, default=2)           # rollos: umbral de alerta de reposición
     creado = db.Column(db.DateTime, default=datetime.utcnow)
+
+    @property
+    def bajo_stock(self):
+        return (self.cantidad or 0) <= (self.stock_minimo or 0)
 
     @property
     def ganancia_unitaria(self):
@@ -662,6 +667,7 @@ class PosibleCliente(db.Model):
     __tablename__ = "posibles_clientes"
 
     ESTADOS = ["Por contestar", "Contestado", "Convertido", "Perdido"]
+    DIAS_SEGUIMIENTO = 3   # días en "Contestado" sin novedades antes de retomar
 
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(120), nullable=False)
@@ -671,6 +677,7 @@ class PosibleCliente(db.Model):
     estado = db.Column(db.String(20), default="Por contestar")
     nota = db.Column(db.String(200))
     fecha_mensaje = db.Column(db.Date, default=date.today)    # cuándo escribió
+    fecha_estado = db.Column(db.DateTime, default=datetime.utcnow)  # último cambio de estado
     creado = db.Column(db.DateTime, default=datetime.utcnow)
 
     @property
@@ -680,8 +687,65 @@ class PosibleCliente(db.Model):
             return 0
         return max((date.today() - self.fecha_mensaje).days, 0)
 
+    @property
+    def dias_sin_novedad(self):
+        """Días desde el último cambio de estado."""
+        if not self.fecha_estado:
+            return 0
+        return max((datetime.utcnow() - self.fecha_estado).days, 0)
+
+    @property
+    def necesita_seguimiento(self):
+        """Contestado hace días y sin avance: hay que retomar la conversación."""
+        return (self.estado == "Contestado"
+                and self.dias_sin_novedad >= self.DIAS_SEGUIMIENTO)
+
     def __repr__(self):
         return f"<PosibleCliente {self.nombre} ({self.estado})>"
+
+
+class EncargoFilamento(db.Model):
+    """
+    Encargo/lista de espera: un cliente busca un filamento que no hay en stock.
+    Al reponer, la app recuerda avisarle por WhatsApp.
+    """
+    __tablename__ = "encargos_filamento"
+
+    ESTADOS = ["Pendiente", "Avisado", "Cerrado"]
+
+    id = db.Column(db.Integer, primary_key=True)
+    cliente = db.Column(db.String(120), nullable=False)
+    telefono = db.Column(db.String(40))                       # WhatsApp
+    descripcion = db.Column(db.String(160), nullable=False)   # "PLA seda dorado 1kg"
+    estado = db.Column(db.String(20), default="Pendiente")
+    nota = db.Column(db.String(200))
+    fecha = db.Column(db.Date, default=date.today)            # cuándo lo pidió
+
+    @property
+    def dias_esperando(self):
+        if not self.fecha:
+            return 0
+        return max((date.today() - self.fecha).days, 0)
+
+    def __repr__(self):
+        return f"<EncargoFilamento {self.cliente}: {self.descripcion}>"
+
+
+class ProductoCatalogo(db.Model):
+    """Producto del catálogo público compartible (link sin login)."""
+    __tablename__ = "productos_catalogo"
+
+    id = db.Column(db.Integer, primary_key=True)
+    nombre = db.Column(db.String(120), nullable=False)
+    descripcion = db.Column(db.String(240))
+    precio = db.Column(db.Float, default=0.0)
+    imagen_filename = db.Column(db.String(120))
+    disponible = db.Column(db.Boolean, default=True)          # oculto del público si False
+    orden = db.Column(db.Integer, default=0)                  # orden de aparición
+    creado = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<ProductoCatalogo {self.nombre}>"
 
 
 class AbonoDeudaFilamento(db.Model):

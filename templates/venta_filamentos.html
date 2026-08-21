@@ -4,6 +4,15 @@
 {% set inp = "bg-base border border-edge rounded-lg px-3 py-2 text-slate-100 placeholder-slate-600 focus:border-teal-400 outline-none" %}
 <h1 class="text-2xl font-bold mb-6 text-slate-100">🧵 Venta de Filamentos</h1>
 
+{% if por_reponer %}
+<div class="mb-6 px-4 py-3 rounded-xl border border-amber-500/30 bg-amber-500/10 text-sm text-amber-200">
+  ⚠️ <b>Por reponer:</b>
+  {% for i in por_reponer %}
+    {{ i.nombre }} ({{ i.cantidad or 0 }} rollo{{ 's' if (i.cantidad or 0) != 1 }}){{ ', ' if not loop.last }}
+  {% endfor %}
+</div>
+{% endif %}
+
 <!-- Resumen -->
 <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
   <div class="bg-card border border-edge rounded-xl p-4">
@@ -138,17 +147,19 @@
 <div class="bg-card border border-edge rounded-xl shadow-lg p-5 mb-6">
   <h2 class="font-semibold mb-3 text-slate-200">Agregar filamento a la venta</h2>
   <form method="post" action="{{ url_for('nuevo_filamento_tienda') }}"
-        class="grid grid-cols-2 md:grid-cols-7 gap-3">
+        class="grid grid-cols-2 md:grid-cols-8 gap-3">
     <input name="nombre" placeholder="Nombre (ej. PLA eSun 1kg) *" required class="{{ inp }} col-span-2">
     <input name="material" placeholder="Material" value="PLA" class="{{ inp }}">
     <input name="color" placeholder="Color" class="{{ inp }}">
     <input name="cantidad" type="number" step="1" min="0" placeholder="Rollos" class="{{ inp }}">
     <input name="costo_unitario" type="number" step="0.5" min="0" placeholder="Costo c/u" class="{{ inp }}">
     <input name="precio_venta" type="number" step="0.5" min="0" placeholder="Precio venta" class="{{ inp }}">
+    <input name="stock_minimo" type="number" step="1" min="0" value="2" title="Avisar cuando queden estos rollos o menos" class="{{ inp }}">
     <button class="bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-900 font-semibold rounded-lg py-2 hover:opacity-90 col-span-2 md:col-span-1">
       Guardar
     </button>
   </form>
+  <p class="text-xs text-slate-600 mt-1">El último campo es el mínimo de rollos antes de avisar reposición.</p>
 </div>
 
 <!-- ═══════════ Stock a la venta ═══════════ -->
@@ -161,8 +172,8 @@
               style="background: {{ i.color | color_hex }}"></span>
         {{ i.nombre }}
       </h3>
-      <span class="text-xs px-2 py-0.5 rounded-md {{ 'bg-teal-500/15 text-teal-300 border border-teal-500/30' if i.cantidad else 'bg-rose-500/15 text-rose-300 border border-rose-500/30' }}">
-        {{ i.cantidad or 0 }} rollo{{ 's' if (i.cantidad or 0) != 1 }}
+      <span class="text-xs px-2 py-0.5 rounded-md {{ 'bg-rose-500/15 text-rose-300 border border-rose-500/30' if not i.cantidad else ('bg-amber-500/15 text-amber-300 border border-amber-500/30' if i.bajo_stock else 'bg-teal-500/15 text-teal-300 border border-teal-500/30') }}">
+        {{ i.cantidad or 0 }} rollo{{ 's' if (i.cantidad or 0) != 1 }}{{ ' ⚠️' if i.bajo_stock and i.cantidad }}
       </span>
     </div>
     <p class="text-sm text-slate-400 mt-1">
@@ -195,6 +206,7 @@
           <input name="agregar" type="number" step="1" placeholder="+ rollos" class="{{ inp }} w-24 text-sm py-1.5">
           <input name="precio_venta" type="number" step="0.5" min="0" placeholder="Precio venta" class="{{ inp }} w-28 text-sm py-1.5">
           <input name="costo_unitario" type="number" step="0.5" min="0" placeholder="Costo c/u" class="{{ inp }} w-24 text-sm py-1.5">
+          <input name="stock_minimo" type="number" step="1" min="0" placeholder="Mín. ({{ i.stock_minimo or 2 }})" title="Avisar cuando queden estos rollos o menos" class="{{ inp }} w-24 text-sm py-1.5">
           <button class="px-3 py-1.5 rounded-lg text-sm bg-base border border-edge text-slate-300 hover:bg-cardh">Actualizar</button>
         </form>
         <form method="post" action="{{ url_for('eliminar_filamento_tienda', iid=i.id) }}"
@@ -206,6 +218,62 @@
   </div>
   {% else %}
   <p class="text-slate-500 col-span-2">Todavía no hay filamentos a la venta. Agrega el primero arriba.</p>
+  {% endfor %}
+</div>
+
+<!-- ═══════════ Encargos (lista de espera) ═══════════ -->
+<div class="bg-card border border-edge rounded-xl shadow-lg p-5 mb-6">
+  <h2 class="font-semibold mb-3 text-slate-200">
+    📋 Encargos — clientes que buscan un color que no hay
+    {% if encargos %}
+    <span class="ml-1 text-xs px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">{{ encargos | length }}</span>
+    {% endif %}
+  </h2>
+
+  <form method="post" action="{{ url_for('nuevo_encargo_filamento') }}"
+        class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+    <input name="cliente" placeholder="Cliente *" required class="{{ inp }}">
+    <input name="telefono" placeholder="WhatsApp" class="{{ inp }}">
+    <input name="descripcion" placeholder="Qué busca (ej. PLA seda dorado) *" required class="{{ inp }} col-span-2">
+    <button class="bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-900 font-semibold rounded-lg py-2 hover:opacity-90">
+      Anotar encargo
+    </button>
+  </form>
+
+  {% for e in encargos %}
+  <div class="flex flex-wrap items-center gap-2 py-2 border-t border-edge/50 text-sm">
+    <div class="flex-1 min-w-[200px]">
+      <b class="text-slate-100">{{ e.cliente }}</b>
+      <span class="text-slate-300"> busca {{ e.descripcion }}</span>
+      <span class="text-slate-500 text-xs">
+        · hace {{ e.dias_esperando }} día{{ 's' if e.dias_esperando != 1 }}
+        {% if e.estado == 'Avisado' %}· <b class="text-cyan-300">ya avisado 📲</b>{% endif %}
+      </span>
+    </div>
+    {% if e.telefono %}
+    <a href="https://wa.me/{{ e.telefono | replace(' ', '') | replace('+', '') }}?text={{ ('Hola ' ~ e.cliente ~ '! Ya nos llegó el filamento que buscabas: ' ~ e.descripcion ~ ' 🧵✨') | urlencode }}"
+       target="_blank"
+       class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-green-500/15 text-green-300 border border-green-500/30 hover:bg-green-500/25">
+      Avisar 📲
+    </a>
+    {% endif %}
+    {% if e.estado == 'Pendiente' %}
+    <form method="post" action="{{ url_for('estado_encargo_filamento', eid=e.id) }}">
+      <input type="hidden" name="estado" value="Avisado">
+      <button class="px-3 py-1.5 rounded-lg text-xs bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/25">Marcar avisado</button>
+    </form>
+    {% endif %}
+    <form method="post" action="{{ url_for('estado_encargo_filamento', eid=e.id) }}">
+      <input type="hidden" name="estado" value="Cerrado">
+      <button class="px-3 py-1.5 rounded-lg text-xs bg-teal-500/15 text-teal-300 border border-teal-500/30 hover:bg-teal-500/25">✅ Cerrar</button>
+    </form>
+    <form method="post" action="{{ url_for('eliminar_encargo_filamento', eid=e.id) }}"
+          onsubmit="return confirm('¿Eliminar el encargo de «{{ e.cliente }}»?')">
+      <button class="text-rose-400 hover:text-rose-300 text-xs px-2">✕</button>
+    </form>
+  </div>
+  {% else %}
+  <p class="text-sm text-slate-500">Sin encargos pendientes.</p>
   {% endfor %}
 </div>
 

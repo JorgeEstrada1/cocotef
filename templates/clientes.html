@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block titulo %}Clientes{% endblock %}
+{% block contenido %}
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-2xl font-bold text-slate-100">👥 Ranking de clientes</h1>
+  <a href="{{ url_for('proyectos') }}"
+     class="px-3 py-2 rounded-lg bg-card border border-edge text-slate-300 text-sm hover:bg-cardh">← Proyectos</a>
+</div>
+
+{% if ranking %}
+<div class="bg-card border border-edge rounded-xl shadow-lg overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead class="bg-cardh text-slate-400 text-left">
+      <tr>
+        <th class="p-3">#</th>
+        <th class="p-3">Cliente</th>
+        <th class="p-3 text-center">Pedidos</th>
+        <th class="p-3 text-right">Total comprado</th>
+        <th class="p-3">Última compra</th>
+        <th class="p-3"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in ranking %}
+      <tr class="border-t border-edge hover:bg-cardh/50">
+        <td class="p-3 text-slate-500">
+          {% if loop.index == 1 %}🥇{% elif loop.index == 2 %}🥈{% elif loop.index == 3 %}🥉{% else %}{{ loop.index }}{% endif %}
+        </td>
+        <td class="p-3">
+          <a href="{{ url_for('ficha_cliente', nombre=c.nombre) }}"
+             class="font-semibold text-slate-100 hover:text-teal-300">{{ c.nombre }}</a>
+          {% if c.activos %}
+          <span class="ml-1 text-xs px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">{{ c.activos }} en curso</span>
+          {% endif %}
+        </td>
+        <td class="p-3 text-center text-slate-300">{{ c.pedidos }}</td>
+        <td class="p-3 text-right font-semibold text-teal-300">{{ c.total | money }}</td>
+        <td class="p-3 text-slate-400">
+          {% if c.ultimo %}
+            {{ c.ultimo.strftime('%d/%m/%Y') }}
+            {% if c.dias_sin_comprar is not none and c.dias_sin_comprar >= 30 and not c.activos %}
+            <span class="text-xs text-amber-300">· hace {{ c.dias_sin_comprar }} días 💤</span>
+            {% endif %}
+          {% else %}—{% endif %}
+        </td>
+        <td class="p-3 text-right">
+          {% if c.telefono %}
+          <a href="https://wa.me/{{ c.telefono | replace(' ', '') | replace('+', '') }}?text={{ ('Hola ' ~ c.nombre ~ '! ¿Cómo estás? Te escribimos del taller de impresión 3D 🖨️ Tenemos novedades que te pueden gustar ✨') | urlencode }}"
+             target="_blank"
+             class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-green-500/15 text-green-300 border border-green-500/30 hover:bg-green-500/25">
+            WhatsApp 📲
+          </a>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="text-xs text-slate-500 mt-3">
+  El total solo cuenta pedidos entregados o pagados por completo (misma regla que el Balance).
+  💤 = más de 30 días sin comprar y sin pedidos en curso: buen momento para escribirle.
+</p>
+{% else %}
+<p class="text-slate-500">Aún no hay pedidos con cliente registrado.</p>
+{% endif %}
+{% endblock %}

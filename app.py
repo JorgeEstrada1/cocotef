@@ -33,7 +33,7 @@ from models import (db, User, Filamento, Proyecto, Venta, Gasto,
                     FotoPedido, Impresora,
                     FilamentoTienda, VentaFilamento,
                     DeudaFilamento, AbonoDeudaFilamento,
-                    PosibleCliente)
+                    PosibleCliente, EncargoFilamento, ProductoCatalogo)
 
 
 def fmt_bs(v):
@@ -235,6 +235,18 @@ def migrar_esquema():
                 conn.execute(text("ALTER TABLE ferias_ventas ADD COLUMN tipo VARCHAR(20) DEFAULT 'venta'"))
             if "nota" not in venta_cols:
                 conn.execute(text("ALTER TABLE ferias_ventas ADD COLUMN nota VARCHAR(200)"))
+
+        # --- v2.5: alerta de reposición en tienda y seguimiento de leads ---
+        if "filamentos_tienda" in tablas:
+            ft_cols = [c["name"] for c in inspect(db.engine).get_columns("filamentos_tienda")]
+            if "stock_minimo" not in ft_cols:
+                conn.execute(text(
+                    "ALTER TABLE filamentos_tienda ADD COLUMN stock_minimo INTEGER DEFAULT 2"))
+        if "posibles_clientes" in tablas:
+            pc_cols = [c["name"] for c in inspect(db.engine).get_columns("posibles_clientes")]
+            if "fecha_estado" not in pc_cols:
+                conn.execute(text(
+                    "ALTER TABLE posibles_clientes ADD COLUMN fecha_estado DATETIME"))
 
     # Backfill: genera token de seguimiento a los pedidos que aún no tienen.
     import secrets as _secrets
@@ -499,13 +511,21 @@ def registrar_rutas(app):
     # ---------- Contexto global (disponible en TODAS las plantillas) ----------
     @app.context_processor
     def inyectar_alertas_stock():
-        """Badges de la nav: filamentos bajo stock y leads por contestar."""
+        """Badges de la nav: stock bajo (taller y tienda) y leads pendientes."""
         if not current_user.is_authenticated:
-            return {"conteo_alertas": 0, "conteo_por_contestar": 0}
+            return {"conteo_alertas": 0, "conteo_por_contestar": 0,
+                    "conteo_tienda": 0}
         conteo = sum(1 for f in Filamento.query.all() if f.bajo_stock)
-        por_contestar = PosibleCliente.query.filter_by(
-            estado="Por contestar").count()
-        return {"conteo_alertas": conteo, "conteo_por_contestar": por_contestar}
+        # Leads: por contestar + contestados que ya piden seguimiento.
+        leads = PosibleCliente.query.filter(
+            PosibleCliente.estado.in_(["Por contestar", "Contestado"])).all()
+        por_contestar = sum(1 for c in leads
+                            if c.estado == "Por contestar" or c.necesita_seguimiento)
+        # Tienda: colores por reponer + encargos sin atender.
+        tienda = sum(1 for i in FilamentoTienda.query.all() if i.bajo_stock)
+        tienda += EncargoFilamento.query.filter_by(estado="Pendiente").count()
+        return {"conteo_alertas": conteo, "conteo_por_contestar": por_contestar,
+                "conteo_tienda": tienda}
 
     # ---------- Autenticación ----------
     @app.route("/login", methods=["GET", "POST"])
@@ -1722,6 +1742,18 @@ def registrar_rutas(app):
         if nuevo in Proyecto.ESTADOS:
             if nuevo == "Imprimiendo" and p.estado != "Imprimiendo":
                 p.inicio_impresion = datetime.utcnow()
+                # El stock de gramos se descuenta solo si el pedido tiene
+                # filamento y peso asignados; si faltan, avisar para que el
+                # inventario del taller no quede desactualizado.
+                if not p.filamento_id or not (p.peso_g or 0):
+                    flash(f"«{p.nombre}» empezó a imprimir sin "
+                          f"{'filamento asignado' if not p.filamento_id else 'peso (gramos)'} — "
+                          f"el stock del taller NO se descontará. Edita el pedido para corregirlo.",
+                          "error")
+                elif p.filamento and p.filamento.gramos_restantes - p.peso_g < 0:
+                    flash(f"Ojo: a {p.filamento.etiqueta} no le alcanzan los gramos "
+                          f"(quedarían {p.filamento.gramos_restantes - p.peso_g:.0f} g). "
+                          f"Revisa el stock real del rollo.", "error")
             if nuevo == "Entregado" and p.estado != "Entregado":
                 p.fecha_entregado = datetime.utcnow()
             p.estado = nuevo
@@ -1855,6 +1887,37 @@ def registrar_rutas(app):
                                por_dia=por_dia, hoy=hoy,
                                prev=prev, sig=sig, meses=MESES)
 
+    # ---------- Ranking de clientes ----------
+    @app.route("/clientes")
+    @login_required
+    def clientes():
+        """Ranking: quién compra más y quién no vuelve hace tiempo."""
+        agregados = {}
+        for p in Proyecto.query.filter(Proyecto.cliente.isnot(None)).all():
+            nombre = (p.cliente or "").strip()
+            if not nombre:
+                continue
+            clave = nombre.lower()
+            c = agregados.setdefault(clave, {
+                "nombre": nombre, "pedidos": 0, "total": 0.0,
+                "ultimo": None, "telefono": None, "activos": 0})
+            c["pedidos"] += 1
+            c["total"] += p.ingreso_reconocido
+            if p.telefono and not c["telefono"]:
+                c["telefono"] = p.telefono
+            if not p.cerrado:
+                c["activos"] += 1
+            fecha = p.creado.date() if p.creado else None
+            if fecha and (not c["ultimo"] or fecha > c["ultimo"]):
+                c["ultimo"] = fecha
+        ranking = sorted(agregados.values(),
+                         key=lambda c: (c["total"], c["pedidos"]), reverse=True)
+        hoy = date.today()
+        for c in ranking:
+            c["total"] = round(c["total"], 2)
+            c["dias_sin_comprar"] = (hoy - c["ultimo"]).days if c["ultimo"] else None
+        return render_template("clientes.html", ranking=ranking)
+
     # ---------- Ficha de cliente ----------
     @app.route("/cliente/<path:nombre>")
     @login_required
@@ -1933,6 +1996,86 @@ def registrar_rutas(app):
         db.session.commit()
         return redirect(url_for("impresoras"))
 
+    # ---------- Catálogo público (link compartible sin login) ----------
+    def _whatsapp_taller():
+        """Número de WhatsApp del taller para el botón del catálogo (opcional)."""
+        return (os.environ.get("TALLER_WHATSAPP") or "").replace(" ", "").replace("+", "")
+
+    @app.route("/catalogo")
+    def catalogo_publico():
+        productos = (ProductoCatalogo.query.filter_by(disponible=True)
+                     .order_by(ProductoCatalogo.orden, ProductoCatalogo.id).all())
+        return render_template("catalogo.html", productos=productos,
+                               whatsapp=_whatsapp_taller())
+
+    @app.route("/catalogo/imagen/<path:filename>")
+    def imagen_catalogo(filename):
+        """Sirve las fotos del catálogo sin exigir login (página pública)."""
+        return send_from_directory(_imagenes_dir(), filename)
+
+    @app.route("/catalogo-admin")
+    @login_required
+    def catalogo_admin():
+        productos = (ProductoCatalogo.query
+                     .order_by(ProductoCatalogo.orden, ProductoCatalogo.id).all())
+        return render_template("catalogo_admin.html", productos=productos,
+                               whatsapp=_whatsapp_taller())
+
+    @app.route("/catalogo-admin/nuevo", methods=["POST"])
+    @login_required
+    def nuevo_producto_catalogo():
+        f = request.form
+        nombre = (f.get("nombre") or "").strip()
+        if not nombre:
+            flash("El nombre del producto es obligatorio.", "error")
+            return redirect(url_for("catalogo_admin"))
+        db.session.add(ProductoCatalogo(
+            nombre=nombre,
+            descripcion=(f.get("descripcion") or "").strip() or None,
+            precio=float(f.get("precio") or 0),
+            orden=int(float(f.get("orden") or 0)),
+            imagen_filename=_guardar_imagen(request.files.get("imagen"))))
+        db.session.commit()
+        flash(f"«{nombre}» agregado al catálogo.", "ok")
+        return redirect(url_for("catalogo_admin"))
+
+    @app.route("/catalogo-admin/<int:prid>/editar", methods=["POST"])
+    @login_required
+    def editar_producto_catalogo(prid):
+        pr = ProductoCatalogo.query.get_or_404(prid)
+        f = request.form
+        pr.nombre = (f.get("nombre") or pr.nombre).strip()
+        pr.descripcion = (f.get("descripcion") or "").strip() or None
+        if f.get("precio"):
+            pr.precio = float(f.get("precio") or 0)
+        if f.get("orden") is not None and f.get("orden") != "":
+            pr.orden = int(float(f.get("orden") or 0))
+        nueva = _guardar_imagen(request.files.get("imagen"))
+        if nueva:
+            _borrar_imagen(pr.imagen_filename)
+            pr.imagen_filename = nueva
+        db.session.commit()
+        flash(f"«{pr.nombre}» actualizado.", "ok")
+        return redirect(url_for("catalogo_admin"))
+
+    @app.route("/catalogo-admin/<int:prid>/disponible", methods=["POST"])
+    @login_required
+    def alternar_producto_catalogo(prid):
+        pr = ProductoCatalogo.query.get_or_404(prid)
+        pr.disponible = not pr.disponible
+        db.session.commit()
+        flash(f"«{pr.nombre}» {'visible en' if pr.disponible else 'oculto d'}el catálogo.", "ok")
+        return redirect(url_for("catalogo_admin"))
+
+    @app.route("/catalogo-admin/<int:prid>/eliminar", methods=["POST"])
+    @login_required
+    def eliminar_producto_catalogo(prid):
+        pr = ProductoCatalogo.query.get_or_404(prid)
+        _borrar_imagen(pr.imagen_filename)
+        db.session.delete(pr)
+        db.session.commit()
+        return redirect(url_for("catalogo_admin"))
+
     # ---------- Filamentos ----------
     @app.route("/filamentos")
     @login_required
@@ -1979,10 +2122,13 @@ def registrar_rutas(app):
                  .order_by(PosibleCliente.fecha_mensaje.asc(),
                            PosibleCliente.id.asc()).all())
         pendientes = [c for c in todos if c.estado == "Por contestar"]
-        contestados = [c for c in todos if c.estado == "Contestado"]
+        seguimiento = [c for c in todos if c.necesita_seguimiento]
+        contestados = [c for c in todos
+                       if c.estado == "Contestado" and not c.necesita_seguimiento]
         cerrados = [c for c in todos if c.estado in ("Convertido", "Perdido")]
         return render_template("posibles_clientes.html",
                                pendientes=pendientes,
+                               seguimiento=seguimiento,
                                contestados=contestados,
                                cerrados=cerrados,
                                estados=PosibleCliente.ESTADOS)
@@ -2012,6 +2158,7 @@ def registrar_rutas(app):
         nuevo = (request.form.get("estado") or "").strip()
         if nuevo in PosibleCliente.ESTADOS:
             c.estado = nuevo
+            c.fecha_estado = datetime.utcnow()   # reinicia el reloj de seguimiento
             db.session.commit()
             flash(f"«{c.nombre}» → {nuevo}.", "ok")
         return redirect(url_for("posibles_clientes"))
@@ -2051,6 +2198,9 @@ def registrar_rutas(app):
                       .limit(30).all())
         total_vendido = round(sum(
             v.precio_total or 0 for v in VentaFilamento.query.all()), 2)
+        encargos = (EncargoFilamento.query
+                    .filter(EncargoFilamento.estado != "Cerrado")
+                    .order_by(EncargoFilamento.fecha.asc()).all())
         return render_template(
             "venta_filamentos.html",
             items=items,
@@ -2058,6 +2208,8 @@ def registrar_rutas(app):
             deuda=_deuda_filamentos(),
             valor_stock=round(sum(i.valor_stock for i in items), 2),
             rollos_stock=sum(i.cantidad or 0 for i in items),
+            por_reponer=[i for i in items if i.bajo_stock],
+            encargos=encargos,
             total_vendido=total_vendido)
 
     @app.route("/venta-filamentos/nuevo", methods=["POST"])
@@ -2074,9 +2226,16 @@ def registrar_rutas(app):
             color=(f.get("color") or "").strip(),
             cantidad=int(float(f.get("cantidad") or 0)),
             costo_unitario=float(f.get("costo_unitario") or 0),
-            precio_venta=float(f.get("precio_venta") or 0)))
+            precio_venta=float(f.get("precio_venta") or 0),
+            stock_minimo=int(float(f.get("stock_minimo") or 2))))
         db.session.commit()
-        flash("Filamento agregado a la tienda.", "ok")
+        # Si alguien encargó algo parecido, recuérdalo al reponer.
+        pendientes = EncargoFilamento.query.filter_by(estado="Pendiente").count()
+        if pendientes:
+            flash(f"Filamento agregado. Ojo: hay {pendientes} encargo(s) pendiente(s) — "
+                  f"revisa si alguien buscaba este color.", "ok")
+        else:
+            flash("Filamento agregado a la tienda.", "ok")
         return redirect(url_for("venta_filamentos"))
 
     @app.route("/venta-filamentos/<int:iid>/editar", methods=["POST"])
@@ -2091,8 +2250,46 @@ def registrar_rutas(app):
             item.precio_venta = float(f.get("precio_venta") or 0)
         if f.get("costo_unitario"):
             item.costo_unitario = float(f.get("costo_unitario") or 0)
+        if f.get("stock_minimo"):
+            item.stock_minimo = int(float(f.get("stock_minimo") or 2))
         db.session.commit()
         flash(f"«{item.nombre}» actualizado.", "ok")
+        return redirect(url_for("venta_filamentos"))
+
+    # --- Encargos: clientes que buscan un filamento que no hay en stock ---
+    @app.route("/venta-filamentos/encargos/nuevo", methods=["POST"])
+    @login_required
+    def nuevo_encargo_filamento():
+        f = request.form
+        cliente = (f.get("cliente") or "").strip()
+        descripcion = (f.get("descripcion") or "").strip()
+        if not cliente or not descripcion:
+            flash("El encargo necesita cliente y qué filamento busca.", "error")
+            return redirect(url_for("venta_filamentos"))
+        db.session.add(EncargoFilamento(
+            cliente=cliente, descripcion=descripcion,
+            telefono=(f.get("telefono") or "").strip() or None,
+            nota=(f.get("nota") or "").strip() or None))
+        db.session.commit()
+        flash(f"Encargo de «{cliente}» anotado.", "ok")
+        return redirect(url_for("venta_filamentos"))
+
+    @app.route("/venta-filamentos/encargos/<int:eid>/estado", methods=["POST"])
+    @login_required
+    def estado_encargo_filamento(eid):
+        e = EncargoFilamento.query.get_or_404(eid)
+        nuevo = (request.form.get("estado") or "").strip()
+        if nuevo in EncargoFilamento.ESTADOS:
+            e.estado = nuevo
+            db.session.commit()
+            flash(f"Encargo de «{e.cliente}» → {nuevo}.", "ok")
+        return redirect(url_for("venta_filamentos"))
+
+    @app.route("/venta-filamentos/encargos/<int:eid>/eliminar", methods=["POST"])
+    @login_required
+    def eliminar_encargo_filamento(eid):
+        db.session.delete(EncargoFilamento.query.get_or_404(eid))
+        db.session.commit()
         return redirect(url_for("venta_filamentos"))
 
     @app.route("/venta-filamentos/<int:iid>/eliminar", methods=["POST"])
@@ -2365,15 +2562,44 @@ def registrar_rutas(app):
                              rows)
 
     # ---------- Balance / Reparto ----------
+    def _ingresos_por_linea(anio, mes):
+        """Ingresos del mes por línea de negocio: pedidos, ferias y filamentos."""
+        pedidos = sum(p.ingreso_reconocido for p in Proyecto.query.filter(
+            extract("year", Proyecto.creado) == anio,
+            extract("month", Proyecto.creado) == mes).all())
+        ferias = sum((v.precio_total or 0) for v in FeriaVenta.query.filter(
+            extract("year", FeriaVenta.fecha_hora) == anio,
+            extract("month", FeriaVenta.fecha_hora) == mes,
+            FeriaVenta.tipo != "merma").all())
+        filamentos = sum((v.precio_total or 0) for v in VentaFilamento.query.filter(
+            extract("year", VentaFilamento.fecha) == anio,
+            extract("month", VentaFilamento.fecha) == mes).all())
+        return {"pedidos": round(pedidos, 2), "ferias": round(ferias, 2),
+                "filamentos": round(filamentos, 2),
+                "total": round(pedidos + ferias + filamentos, 2)}
+
     @app.route("/balance")
     @login_required
     def balance():
         per = _contexto_periodo()
         historial = Liquidacion.query.order_by(
             Liquidacion.fecha.desc(), Liquidacion.id.desc()).all()
+
+        # Últimos 6 meses (terminando en el periodo elegido) por línea de negocio.
+        lineas = []
+        a, m = per["anio"], per["mes"]
+        for _ in range(6):
+            datos = _ingresos_por_linea(a, m)
+            datos.update({"anio": a, "mes": m, "etiqueta": f"{MESES[m][:3]} {a}"})
+            lineas.append(datos)
+            a, m = mes_relativo(a, m, -1)
+        lineas.reverse()
+        max_linea = max((l["total"] for l in lineas), default=0) or 1
+
         return render_template("balance.html",
                                bal=calcular_balance(per["anio"], per["mes"]),
-                               per=per, historial=historial, meses=MESES)
+                               per=per, historial=historial, meses=MESES,
+                               lineas=lineas, max_linea=max_linea)
 
     @app.route("/balance/liquidar", methods=["POST"])
     @login_required
@@ -2526,6 +2752,61 @@ def registrar_rutas(app):
             return uri[len("sqlite:///"):]
         return None
 
+    def _backups_dir():
+        ruta = _db_path()
+        if not ruta:
+            return None
+        carpeta = os.path.join(os.path.dirname(ruta), "backups")
+        os.makedirs(carpeta, exist_ok=True)
+        return carpeta
+
+    def _listar_backups():
+        carpeta = _backups_dir()
+        if not carpeta:
+            return []
+        copias = []
+        for nombre in sorted(os.listdir(carpeta), reverse=True):
+            if nombre.endswith(".db"):
+                completo = os.path.join(carpeta, nombre)
+                copias.append({"nombre": nombre,
+                               "size": os.path.getsize(completo)})
+        return copias
+
+    # Estado en memoria para hacer el respaldo UNA vez al día (primer request).
+    _backup_estado = {"dia": None}
+    MAX_BACKUPS = 14
+
+    @app.before_request
+    def backup_diario():
+        """Copia diaria automática de la BD a backups/ (conserva las últimas 14)."""
+        hoy = date.today()
+        if _backup_estado["dia"] == hoy:
+            return
+        _backup_estado["dia"] = hoy
+        try:
+            ruta = _db_path()
+            carpeta = _backups_dir()
+            if not ruta or not carpeta or not os.path.isfile(ruta):
+                return
+            destino = os.path.join(carpeta, f"respaldo_{hoy.isoformat()}.db")
+            if not os.path.isfile(destino):
+                shutil.copy2(ruta, destino)
+            copias = sorted(f for f in os.listdir(carpeta)
+                            if f.startswith("respaldo_") and f.endswith(".db"))
+            for viejo in copias[:-MAX_BACKUPS]:
+                os.remove(os.path.join(carpeta, viejo))
+        except OSError:
+            pass   # un backup fallido nunca debe tumbar la app
+
+    @app.route("/sistema/backups/<path:nombre>")
+    @login_required
+    def descargar_backup(nombre):
+        carpeta = _backups_dir()
+        if not carpeta:
+            flash("No hay carpeta de respaldos.", "error")
+            return redirect(url_for("sistema"))
+        return send_from_directory(carpeta, nombre, as_attachment=True)
+
     def _pa_config():
         """Credenciales de PythonAnywhere leídas de variables de entorno."""
         return {
@@ -2545,7 +2826,7 @@ def registrar_rutas(app):
             db_info["size"] = os.path.getsize(ruta)
         pa = _pa_config()
         return render_template(
-            "sistema.html", db_info=db_info,
+            "sistema.html", db_info=db_info, backups=_listar_backups(),
             pa_configurado=bool(pa["username"] and pa["domain"] and pa["token"]),
             pa_username=pa["username"], pa_domain=pa["domain"])
 

@@ -53,6 +53,32 @@
               shadow-lg shadow-cyan-500/20">
       📥 Exportar base de datos (.db)
     </a>
+
+    <!-- Respaldos automáticos diarios -->
+    <div class="mt-4 border-t border-edge pt-3">
+      <p class="text-sm text-slate-300 mb-1">🕐 Respaldos automáticos
+        <span class="text-xs text-slate-500">(uno por día, se conservan los últimos 14)</span>
+      </p>
+      {% if backups %}
+      <div class="max-h-40 overflow-y-auto space-y-1">
+        {% for b in backups %}
+        <div class="flex items-center justify-between text-xs bg-base border border-edge rounded-lg px-2.5 py-1.5">
+          <span class="font-mono text-slate-300">{{ b.nombre }}</span>
+          <span class="flex items-center gap-2">
+            <span class="text-slate-500">
+              {% if b.size >= 1048576 %}{{ (b.size / 1048576) | round(2) }} MB
+              {% else %}{{ (b.size / 1024) | round(1) }} KB{% endif %}
+            </span>
+            <a href="{{ url_for('descargar_backup', nombre=b.nombre) }}"
+               class="text-cyan-300 hover:text-cyan-200">Descargar</a>
+          </span>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-xs text-slate-500">Todavía no hay respaldos automáticos: el primero se crea solo al usar la app cada día.</p>
+      {% endif %}
+    </div>
   </div>
 
   <!-- ============ IMPORTAR / RESTAURAR ============ -->
