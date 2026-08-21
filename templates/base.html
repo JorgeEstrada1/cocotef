@@ -8,20 +8,21 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🖨️</text></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
       theme: {
         extend: {
           colors: {
-            base:   "#090d16",   // fondo general
-            card:   "#151c2c",   // tarjetas / tablas
+            base:   "#090d16",   // fondo general (azul noche)
+            card:   "#141b2b",   // tarjetas / tablas
             cardh:  "#1b2338",   // hover
             edge:   "#232c42",   // bordes
           },
           fontFamily: {
             sans: ["Inter", "system-ui", "sans-serif"],
+            display: ["Space Grotesk", "Inter", "sans-serif"],
           },
         },
       },
@@ -30,6 +31,27 @@
   {% block head %}{% endblock %}
   <style>
     body { background-color: #090d16; }
+
+    /* --- Profundidad del fondo: luz ambiental + grano sutil --- */
+    body::before {
+      content: ""; position: fixed; inset: 0; z-index: -2; pointer-events: none;
+      background:
+        radial-gradient(ellipse 60% 40% at 15% -5%, rgba(45, 212, 191, .07), transparent 60%),
+        radial-gradient(ellipse 50% 35% at 90% 0%, rgba(56, 189, 248, .05), transparent 55%),
+        radial-gradient(ellipse 70% 50% at 50% 110%, rgba(20, 27, 43, .9), transparent 70%);
+    }
+    body::after {
+      content: ""; position: fixed; inset: 0; z-index: 60; pointer-events: none; opacity: .022;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    }
+
+    /* --- Tipografía con carácter --- */
+    h1, h2, h3, .font-display { font-family: "Space Grotesk", "Inter", sans-serif; }
+    h1 { letter-spacing: -0.03em; }
+    h2, h3 { letter-spacing: -0.015em; }
+    /* Números alineados en tablas y cifras (tabular) */
+    table, [data-contar], .tnum { font-variant-numeric: tabular-nums; }
+
     /* Scrollbar oscuro */
     ::-webkit-scrollbar { height: 10px; width: 10px; }
     ::-webkit-scrollbar-track { background: #0d1320; }
@@ -38,8 +60,25 @@
     /* Inputs oscuros por defecto */
     input, select { color-scheme: dark; }
 
+    /* --- Sistema de botón primario (un solo acento, sombra tintada) --- */
+    .btn-primario {
+      background-color: #14b8a6; color: #0a1120; font-weight: 600;
+      box-shadow: 0 4px 16px -4px rgba(20, 184, 166, .45),
+                  inset 0 1px 0 rgba(255, 255, 255, .22);
+    }
+    .btn-primario:hover:not(:disabled) { background-color: #2dd4bf; }
+
+    /* --- Superficies con luz: borde superior iluminado y sombra tintada --- */
+    .bg-card {
+      background-image: linear-gradient(180deg, rgba(255, 255, 255, .028), transparent 36%);
+      box-shadow: 0 10px 28px -14px rgba(3, 7, 18, .8);
+    }
+    .bg-card:hover { border-color: rgba(45, 212, 191, .18); }
+
     /* --- Micro-interacciones globales --- */
     button, a, summary, input, select { transition: all .15s ease; }
+    button:not(:disabled):active, a:active { transform: scale(.98); }
+    :focus-visible { outline: 2px solid rgba(45, 212, 191, .65); outline-offset: 2px; border-radius: 6px; }
     .bg-card { transition: border-color .2s ease, box-shadow .2s ease; }
     main > * { animation: fadeUp .35s ease both; }
     @keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
@@ -80,24 +119,32 @@
 </head>
 <body class="bg-base text-slate-200 min-h-screen font-sans antialiased">
   {% if current_user.is_authenticated %}
+  {% set ep = request.endpoint %}
   {% set item = "px-3 py-2 rounded-lg text-sm text-slate-300 hover:bg-cardh hover:text-teal-300 transition" %}
+  {% set activo = " bg-cardh !text-teal-300 font-medium" %}
   {% set subitem = "block px-4 py-2.5 text-sm text-slate-300 hover:bg-cardh hover:text-teal-300 transition" %}
   {% set badge = "absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[11px] font-bold text-white rounded-full ring-2 ring-card shadow-lg animate-pulse" %}
   {% set inv_total = conteo_alertas + conteo_tienda %}
+  {% set en_inventario = ep in ("filamentos", "venta_filamentos", "impresoras") %}
+  {% set en_finanzas = ep in ("balance", "gastos", "inversiones", "ventas", "editar_venta", "editar_gasto") %}
 
-  <nav class="bg-card/80 backdrop-blur border-b border-edge sticky top-0 z-20">
+  <nav class="bg-base/85 backdrop-blur-md border-b border-edge/80 sticky top-0 z-20">
     <div class="max-w-6xl mx-auto px-4 flex items-center gap-1 py-3">
-      <a href="{{ url_for('dashboard') }}" class="font-bold text-lg mr-2 lg:mr-4 flex items-center gap-2 shrink-0">
-        <span class="text-teal-400">🖨️</span>
-        <span class="bg-gradient-to-r from-teal-400 to-cyan-400 bg-clip-text text-transparent">Taller 3D</span>
+      <a href="{{ url_for('dashboard') }}" class="mr-2 lg:mr-4 flex items-center gap-2.5 shrink-0 group">
+        <span class="w-9 h-9 rounded-xl bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center
+                     text-lg shadow-lg shadow-teal-500/30 group-hover:shadow-teal-500/50 transition">🖨️</span>
+        <span class="leading-none">
+          <span class="block font-display font-bold text-[17px] text-slate-100 tracking-tight">Taller 3D</span>
+          <span class="block text-[10px] uppercase tracking-[.18em] text-teal-400/80 mt-0.5">Gestión</span>
+        </span>
       </a>
 
       <!-- ===== Nav escritorio ===== -->
       <div class="hidden md:flex items-center gap-1 flex-1">
-        <a href="{{ url_for('dashboard') }}" class="{{ item }}">Panel</a>
-        <a href="{{ url_for('proyectos') }}" class="{{ item }}">Proyectos / Ventas</a>
-        <a href="{{ url_for('calendario') }}" class="{{ item }}">📅 Agenda</a>
-        <a href="{{ url_for('posibles_clientes') }}" class="{{ item }} relative">
+        <a href="{{ url_for('dashboard') }}" class="{{ item }}{{ activo if ep == 'dashboard' }}">Panel</a>
+        <a href="{{ url_for('proyectos') }}" class="{{ item }}{{ activo if ep in ('proyectos', 'editar_proyecto', 'clientes', 'ficha_cliente') }}">Proyectos / Ventas</a>
+        <a href="{{ url_for('calendario') }}" class="{{ item }}{{ activo if ep == 'calendario' }}">📅 Agenda</a>
+        <a href="{{ url_for('posibles_clientes') }}" class="{{ item }}{{ activo if ep == 'posibles_clientes' }} relative">
           💬 Posibles clientes
           {% if conteo_por_contestar > 0 %}
           <span class="{{ badge }} bg-rose-500 shadow-rose-500/40">{{ conteo_por_contestar }}</span>
@@ -106,7 +153,7 @@
 
         <!-- Inventario ▾ -->
         <div class="relative menu-grupo">
-          <button type="button" class="{{ item }} relative flex items-center gap-1">
+          <button type="button" class="{{ item }}{{ activo if en_inventario }} relative flex items-center gap-1">
             🧵 Inventario
             <svg class="w-3 h-3 opacity-60" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="m6 9 6 6 6-6"/></svg>
             {% if inv_total > 0 %}
@@ -115,35 +162,35 @@
           </button>
           <div class="menu-panel absolute left-0 top-full pt-1 z-30">
             <div class="bg-card border border-edge rounded-xl shadow-2xl shadow-black/40 py-1.5 min-w-[230px]">
-              <a href="{{ url_for('filamentos') }}" class="{{ subitem }} flex items-center justify-between">
+              <a href="{{ url_for('filamentos') }}" class="{{ subitem }}{{ activo if ep == 'filamentos' }} flex items-center justify-between">
                 Filamentos del taller
                 {% if conteo_alertas > 0 %}<span class="text-[11px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300">{{ conteo_alertas }}</span>{% endif %}
               </a>
-              <a href="{{ url_for('venta_filamentos') }}" class="{{ subitem }} flex items-center justify-between">
+              <a href="{{ url_for('venta_filamentos') }}" class="{{ subitem }}{{ activo if ep == 'venta_filamentos' }} flex items-center justify-between">
                 🧵 Venta de filamentos
                 {% if conteo_tienda > 0 %}<span class="text-[11px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300">{{ conteo_tienda }}</span>{% endif %}
               </a>
-              <a href="{{ url_for('impresoras') }}" class="{{ subitem }}">🖨️ Impresoras</a>
+              <a href="{{ url_for('impresoras') }}" class="{{ subitem }}{{ activo if ep == 'impresoras' }}">🖨️ Impresoras</a>
             </div>
           </div>
         </div>
 
         <!-- Finanzas ▾ -->
         <div class="relative menu-grupo">
-          <button type="button" class="{{ item }} flex items-center gap-1">
+          <button type="button" class="{{ item }}{{ activo if en_finanzas }} flex items-center gap-1">
             💰 Finanzas
             <svg class="w-3 h-3 opacity-60" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="m6 9 6 6 6-6"/></svg>
           </button>
           <div class="menu-panel absolute left-0 top-full pt-1 z-30">
             <div class="bg-card border border-edge rounded-xl shadow-2xl shadow-black/40 py-1.5 min-w-[210px]">
-              <a href="{{ url_for('balance') }}" class="{{ subitem }} font-semibold text-teal-300">💰 Balance</a>
-              <a href="{{ url_for('gastos') }}" class="{{ subitem }}">Gastos</a>
-              <a href="{{ url_for('inversiones') }}" class="{{ subitem }}">Deudas e Inversiones</a>
+              <a href="{{ url_for('balance') }}" class="{{ subitem }}{{ activo if ep == 'balance' }} font-semibold text-teal-300">💰 Balance</a>
+              <a href="{{ url_for('gastos') }}" class="{{ subitem }}{{ activo if ep in ('gastos', 'editar_gasto') }}">Gastos</a>
+              <a href="{{ url_for('inversiones') }}" class="{{ subitem }}{{ activo if ep == 'inversiones' }}">Deudas e Inversiones</a>
             </div>
           </div>
         </div>
 
-        <a href="{{ url_for('catalogo_admin') }}" class="{{ item }}">🛍️ Catálogo</a>
+        <a href="{{ url_for('catalogo_admin') }}" class="{{ item }}{{ activo if ep == 'catalogo_admin' }}">🛍️ Catálogo</a>
       </div>
 
       <!-- ===== Lado derecho ===== -->

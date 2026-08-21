@@ -8,7 +8,7 @@
     <a href="{{ url_for('catalogo_publico') }}" target="_blank"
        class="px-3 py-2 rounded-lg bg-card border border-edge text-slate-300 text-sm hover:bg-cardh">👁️ Ver como cliente</a>
     <button onclick="navigator.clipboard.writeText('{{ url_for('catalogo_publico', _external=True) }}'); this.textContent='✅ Copiado';"
-            class="px-3 py-2 rounded-lg text-sm font-semibold bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-900 hover:opacity-90">
+            class="px-3 py-2 rounded-lg text-sm btn-primario">
       🔗 Copiar link para compartir
     </button>
   </div>
@@ -31,7 +31,7 @@
     <input name="descripcion" placeholder="Descripción corta" class="{{ inp }} col-span-2">
     <input name="imagen" type="file" accept=".jpg,.jpeg,.png,.webp"
            class="{{ inp }} text-sm file:mr-2 file:px-2 file:py-1 file:rounded file:border-0 file:bg-cardh file:text-slate-300">
-    <button class="bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-900 font-semibold rounded-lg py-2 hover:opacity-90">
+    <button class="btn-primario rounded-lg py-2">
       Guardar
     </button>
   </form>

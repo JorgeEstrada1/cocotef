@@ -48,9 +48,7 @@
     </div>
 
     <a href="{{ url_for('exportar_db') }}"
-       class="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-cyan-500 to-indigo-500
-              text-slate-900 font-semibold rounded-lg py-2.5 hover:opacity-90 transition
-              shadow-lg shadow-cyan-500/20">
+       class="w-full flex items-center justify-center gap-2 btn-primario rounded-lg py-2.5 transition">
       📥 Exportar base de datos (.db)
     </a>
 
@@ -131,9 +129,7 @@
     </p>
     <form method="post" action="{{ url_for('git_pull') }}"
           data-confirm="¿Ejecutar git pull para actualizar el código?">
-      <button class="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-500 to-cyan-500
-                     text-slate-900 font-semibold rounded-lg py-2.5 hover:opacity-90 transition
-                     shadow-lg shadow-indigo-500/20">
+      <button class="w-full flex items-center justify-center gap-2 btn-primario rounded-lg py-2.5 transition">
         🔄 Sincronizar código con Git (git pull)
       </button>
     </form>
@@ -160,9 +156,7 @@
         <span class="text-xs px-2 py-0.5 rounded-md bg-teal-500/10 text-teal-300 border border-teal-500/30">✓ Configurado</span></div>
     </div>
     <form method="post" action="{{ url_for('recargar_web') }}">
-      <button class="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-teal-500 to-cyan-500
-                     text-slate-900 font-semibold rounded-lg py-2.5 hover:opacity-90 transition
-                     shadow-lg shadow-teal-500/20">
+      <button class="w-full flex items-center justify-center gap-2 btn-primario rounded-lg py-2.5 transition">
         🚀 Recargar aplicación web
       </button>
     </form>

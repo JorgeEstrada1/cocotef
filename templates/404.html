@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block titulo %}Página no encontrada{% endblock %}
+{% block contenido %}
+<div class="min-h-[70vh] flex items-center justify-center">
+  <div class="text-center max-w-md">
+    <p class="font-display text-[92px] leading-none font-bold text-slate-800 select-none">404</p>
+    <p class="text-4xl -mt-8 mb-4">🔍🖨️</p>
+    <h1 class="text-xl font-bold text-slate-100 mb-2">Esta pieza no está en el catálogo</h1>
+    <p class="text-sm text-slate-400 mb-6">
+      La página que buscas no existe o fue movida. Revisa la dirección o vuelve al inicio.
+    </p>
+    <div class="flex items-center justify-center gap-3">
+      {% if current_user.is_authenticated %}
+      <a href="{{ url_for('dashboard') }}" class="btn-primario rounded-lg px-5 py-2.5">← Volver al panel</a>
+      {% else %}
+      <a href="{{ url_for('login') }}" class="btn-primario rounded-lg px-5 py-2.5">Iniciar sesión</a>
+      <a href="{{ url_for('catalogo_publico') }}" class="px-5 py-2.5 rounded-lg bg-card border border-edge text-slate-300 hover:bg-cardh">Ver catálogo</a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

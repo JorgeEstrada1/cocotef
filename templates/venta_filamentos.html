@@ -137,7 +137,7 @@
                class="accent-teal-400 w-4 h-4">
         Abono automático activo
       </label>
-      <button class="bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-900 font-semibold rounded-lg py-2 hover:opacity-90">
+      <button class="btn-primario rounded-lg py-2">
         Guardar
       </button>
     </form>
@@ -156,7 +156,7 @@
     <input name="costo_unitario" type="number" step="0.5" min="0" placeholder="Costo c/u" class="{{ inp }}">
     <input name="precio_venta" type="number" step="0.5" min="0" placeholder="Precio venta" class="{{ inp }}">
     <input name="stock_minimo" type="number" step="1" min="0" value="2" title="Avisar cuando queden estos rollos o menos" class="{{ inp }}">
-    <button class="bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-900 font-semibold rounded-lg py-2 hover:opacity-90 col-span-2 md:col-span-1">
+    <button class="btn-primario rounded-lg py-2 col-span-2 md:col-span-1">
       Guardar
     </button>
   </form>
@@ -193,7 +193,7 @@
       <input name="precio_total" type="number" step="0.5" min="0"
              value="{{ '%.2f'|format(i.precio_venta or 0) }}" title="Total Bs. (editable)"
              class="{{ inp }} w-28 text-sm py-1.5" {{ 'disabled' if not i.cantidad }}>
-      <button class="px-4 py-1.5 rounded-lg text-sm font-semibold bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-900 hover:opacity-90 disabled:opacity-40"
+      <button class="px-4 py-1.5 rounded-lg text-sm btn-primario disabled:opacity-40"
               {{ 'disabled' if not i.cantidad }}>
         💰 Vender
       </button>
@@ -236,7 +236,7 @@
     <input name="cliente" placeholder="Cliente *" required class="{{ inp }}">
     <input name="telefono" placeholder="WhatsApp" class="{{ inp }}">
     <input name="descripcion" placeholder="Qué busca (ej. PLA seda dorado) *" required class="{{ inp }} col-span-2">
-    <button class="bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-900 font-semibold rounded-lg py-2 hover:opacity-90">
+    <button class="btn-primario rounded-lg py-2">
       Anotar encargo
     </button>
   </form>

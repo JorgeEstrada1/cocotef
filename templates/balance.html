@@ -22,7 +22,7 @@
       {{ bal.ganancia_neta | money }}
     </p>
   </div>
-  <div class="bg-gradient-to-br from-teal-500 to-cyan-600 text-slate-900 rounded-xl shadow-lg p-5">
+  <div class="bg-gradient-to-br from-teal-400 to-teal-600 text-slate-950 rounded-xl p-5 shadow-lg shadow-teal-500/25">
     <p class="text-sm opacity-80">A cada uno (50%)</p>
     <p class="text-xl font-bold" data-contar="{{ bal.parte_justa }}">{{ bal.parte_justa | money }}</p>
   </div>
@@ -126,7 +126,7 @@
     </div>
     <button type="button"
             onclick="document.getElementById('modalLiquidar').classList.remove('hidden')"
-            class="shrink-0 bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-900 font-semibold rounded-lg px-4 py-2.5 hover:opacity-90 transition">
+            class="shrink-0 btn-primario rounded-lg px-4 py-2.5 transition">
       🤝 Saldar Cuentas / Registrar Pago a Socio
     </button>
   </div>
@@ -176,7 +176,7 @@
           Cancelar
         </button>
         <button type="submit"
-                class="flex-1 bg-gradient-to-r from-teal-500 to-cyan-500 text-slate-900 font-semibold rounded-lg px-4 py-2 hover:opacity-90 transition">
+                class="flex-1 btn-primario rounded-lg px-4 py-2 transition">
           Confirmar pago
         </button>
       </div>

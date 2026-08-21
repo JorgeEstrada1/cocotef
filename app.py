@@ -2966,6 +2966,13 @@ def registrar_rutas(app):
             flash(f"Error al recargar la web: {e}", "error")
         return redirect(url_for("sistema"))
 
+    # ---------- Página 404 con marca propia ----------
+    @app.errorhandler(404)
+    def no_encontrada(_e):
+        if request.path.startswith("/api/"):
+            return jsonify({"ok": False, "error": "Recurso no encontrado."}), 404
+        return render_template("404.html"), 404
+
     # Filtro para formatear plata en las plantillas (moneda: Bolivianos).
     # Conserva los decimales cuando existen (ej. Bs. 120.50) y los omite
     # cuando el monto es entero (ej. Bs. 120).
