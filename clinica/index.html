@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clínica Vitalis</title>
+<meta name="description" content="Clínica Vitalis: atención médica integral con especialistas, diagnóstico y tratamientos personalizados. Agenda tu cita hoy.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   PERSONALIZA AQUÍ: colores de la marca
+   ============================================================ */
+:root{
+  --primary:#0f5c6e;      /* azul petróleo */
+  --primary-dark:#0a4452;
+  --accent:#c9a45c;       /* dorado suave */
+  --bg:#ffffff;
+  --bg-soft:#f4f8f9;
+  --text:#1d2b30;
+  --muted:#5b6d73;
+  --line:#e2eaec;
+  --card:#ffffff;
+  --radius:18px;
+  --shadow:0 10px 30px rgba(15,92,110,.10);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:Inter,system-ui,sans-serif;color:var(--text);background:var(--bg);line-height:1.6;overflow-x:hidden}
+h1,h2,h3{font-family:"Playfair Display",Georgia,serif;line-height:1.2;color:var(--primary-dark)}
+a{color:inherit;text-decoration:none}
+img,svg{max-width:100%;display:block}
+.container{width:min(1180px,100% - 32px);margin-inline:auto}
+section{padding:90px 0}
+.eyebrow{display:inline-block;font-size:.78rem;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);font-weight:600;margin-bottom:12px}
+.section-title{font-size:clamp(1.8rem,3.5vw,2.6rem);margin-bottom:14px}
+.section-sub{color:var(--muted);max-width:640px}
+.center{text-align:center}.center .section-sub{margin-inline:auto}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:14px 26px;border-radius:999px;font-weight:600;font-size:.95rem;transition:.25s;border:2px solid transparent;cursor:pointer;font-family:inherit}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:hover{background:var(--primary-dark);transform:translateY(-2px)}
+.btn-outline{border-color:#fff;color:#fff}
+.btn-outline:hover{background:#fff;color:var(--primary-dark)}
+.btn-gold{background:var(--accent);color:#fff}
+.btn-gold:hover{filter:brightness(.92);transform:translateY(-2px)}
+
+/* Barra superior */
+.topbar{background:var(--primary-dark);color:#d6e6ea;font-size:.85rem}
+.topbar .container{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:8px 0;flex-wrap:wrap}
+.topbar span{display:inline-flex;align-items:center;gap:6px;margin-right:18px}
+
+/* Navegación */
+header.nav{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.95);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+.nav .container{display:flex;align-items:center;justify-content:space-between;height:76px}
+.logo{display:flex;align-items:center;gap:10px;font-family:"Playfair Display",serif;font-size:1.45rem;font-weight:700;color:var(--primary-dark)}
+.logo-mark{width:40px;height:40px;border-radius:12px;background:var(--primary);display:grid;place-items:center}
+.nav-links{display:flex;gap:28px;list-style:none;font-weight:500;font-size:.95rem}
+.nav-links a:hover{color:var(--primary)}
+.menu-btn{display:none;background:none;border:0;cursor:pointer;padding:8px}
+.menu-btn span{display:block;width:24px;height:2px;background:var(--primary-dark);margin:5px 0;transition:.3s}
+
+/* Portada */
+.hero{position:relative;padding:0;background:linear-gradient(120deg,rgba(10,68,82,.95),rgba(15,92,110,.82)),radial-gradient(circle at 80% 20%,#1b8aa3,transparent 60%);color:#fff;overflow:hidden}
+.hero .container{display:grid;grid-template-columns:1.1fr .9fr;gap:40px;align-items:center;min-height:600px;padding:70px 0}
+.hero h1{color:#fff;font-size:clamp(2.2rem,5vw,3.6rem);margin-bottom:20px}
+.hero h1 em{color:var(--accent);font-style:italic}
+.hero p{font-size:1.1rem;color:#d6e6ea;max-width:520px;margin-bottom:32px}
+.hero-actions{display:flex;gap:14px;flex-wrap:wrap}
+.hero-art{position:relative;display:grid;place-items:center}
+.hero-circle{width:min(420px,100%);aspect-ratio:1;border-radius:50%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);display:grid;place-items:center}
+.hero-badge{position:absolute;background:#fff;color:var(--text);border-radius:14px;padding:14px 18px;box-shadow:var(--shadow);font-size:.85rem;display:flex;gap:10px;align-items:center}
+.hero-badge strong{display:block;color:var(--primary-dark);font-size:1.05rem}
+.hero-badge.b1{top:12%;left:0}.hero-badge.b2{bottom:10%;right:0}
+.dot{width:38px;height:38px;border-radius:10px;background:var(--bg-soft);display:grid;place-items:center;flex-shrink:0}
+
+/* Cifras */
+.stats{padding:0;margin-top:-50px;position:relative;z-index:2}
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);background:#fff;border-radius:var(--radius);box-shadow:var(--shadow)}
+.stat{padding:30px;text-align:center;border-right:1px solid var(--line)}
+.stat:last-child{border-right:0}
+.stat b{display:block;font-family:"Playfair Display",serif;font-size:2.3rem;color:var(--primary)}
+.stat span{color:var(--muted);font-size:.9rem}
+
+/* Especialidades */
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-top:50px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:32px;transition:.3s}
+.card:hover{transform:translateY(-6px);box-shadow:var(--shadow);border-color:transparent}
+.card .icon{width:56px;height:56px;border-radius:16px;background:var(--bg-soft);display:grid;place-items:center;margin-bottom:20px;transition:.3s}
+.card:hover .icon{background:var(--primary)}
+.card:hover .icon svg{stroke:#fff}
+.card h3{font-size:1.25rem;margin-bottom:10px}
+.card p{color:var(--muted);font-size:.95rem}
+.card .more{display:inline-block;margin-top:16px;color:var(--primary);font-weight:600;font-size:.9rem}
+
+/* Nosotros */
+.about{background:var(--bg-soft)}
+.about .container{display:grid;grid-template-columns:1fr 1fr;gap:60px;align-items:center}
+.about-visual{position:relative;border-radius:var(--radius);background:linear-gradient(160deg,var(--primary),var(--primary-dark));aspect-ratio:4/5;display:grid;place-items:center;overflow:hidden}
+.about-visual .exp{position:absolute;bottom:24px;left:24px;background:var(--accent);color:#fff;border-radius:14px;padding:18px 22px}
+.about-visual .exp b{font-family:"Playfair Display",serif;font-size:2.2rem;display:block;line-height:1}
+.checks{list-style:none;margin:26px 0 32px;display:grid;gap:14px}
+.checks li{display:flex;gap:12px;align-items:flex-start}
+.checks li::before{content:"";flex-shrink:0;width:22px;height:22px;margin-top:2px;border-radius:50%;background:var(--primary) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3'%3E%3Cpath d='M5 12l5 5L20 7'/%3E%3C/svg%3E") center/13px no-repeat}
+
+/* Equipo */
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:24px;margin-top:50px}
+.doctor{text-align:center;border-radius:var(--radius);overflow:hidden;border:1px solid var(--line);background:#fff;transition:.3s}
+.doctor:hover{box-shadow:var(--shadow);transform:translateY(-4px)}
+.doctor .photo{aspect-ratio:1;display:grid;place-items:center;font-family:"Playfair Display",serif;font-size:3rem;color:#fff}
+.doctor .info{padding:20px}
+.doctor h3{font-size:1.1rem}
+.doctor span{color:var(--accent);font-size:.88rem;font-weight:600}
+
+/* Proceso */
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:24px;margin-top:50px;counter-reset:s}
+.step{position:relative;padding:28px;border-radius:var(--radius);background:var(--bg-soft)}
+.step::before{counter-increment:s;content:"0" counter(s);font-family:"Playfair Display",serif;font-size:2.4rem;color:var(--accent);display:block;margin-bottom:8px}
+.step h3{font-size:1.1rem;margin-bottom:6px}
+.step p{color:var(--muted);font-size:.92rem}
+
+/* Testimonios */
+.testimonials{background:var(--primary-dark);color:#fff}
+.testimonials h2{color:#fff}
+.testimonials .section-sub{color:#b8d0d6}
+.quote{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:var(--radius);padding:30px}
+.quote .stars{color:var(--accent);letter-spacing:3px;margin-bottom:12px}
+.quote p{color:#e2eef1;font-style:italic;margin-bottom:20px}
+.quote b{display:block}
+.quote small{color:#9fbcc3}
+
+/* Preguntas frecuentes */
+.faq-list{max-width:820px;margin:50px auto 0}
+details{border-bottom:1px solid var(--line);padding:20px 0}
+summary{cursor:pointer;font-weight:600;font-size:1.05rem;list-style:none;display:flex;justify-content:space-between;gap:16px}
+summary::-webkit-details-marker{display:none}
+summary::after{content:"+";font-size:1.5rem;color:var(--primary);line-height:1;transition:.3s}
+details[open] summary::after{transform:rotate(45deg)}
+details p{color:var(--muted);margin-top:12px}
+
+/* Citas */
+.booking{background:var(--bg-soft)}
+.booking .container{display:grid;grid-template-columns:.9fr 1.1fr;gap:50px;align-items:start}
+.contact-item{display:flex;gap:14px;margin-top:22px}
+.contact-item .dot{background:#fff;width:46px;height:46px}
+.contact-item b{display:block;color:var(--primary-dark)}
+.contact-item span{color:var(--muted);font-size:.95rem}
+form{background:#fff;padding:36px;border-radius:var(--radius);box-shadow:var(--shadow);display:grid;grid-template-columns:1fr 1fr;gap:16px}
+form .full{grid-column:1/-1}
+label{font-size:.85rem;font-weight:600;display:block;margin-bottom:6px}
+input,select,textarea{width:100%;padding:13px 14px;border:1px solid var(--line);border-radius:10px;font:inherit;background:var(--bg-soft);color:var(--text)}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--primary);border-color:transparent;background:#fff}
+textarea{min-height:100px;resize:vertical}
+.form-note{font-size:.8rem;color:var(--muted)}
+
+/* Mapa */
+.map{padding:0;line-height:0}
+.map iframe{width:100%;height:380px;border:0;filter:grayscale(.3)}
+
+/* Pie */
+footer{background:#08333d;color:#a9c3c9;padding:70px 0 0;font-size:.93rem}
+.footer-grid{display:grid;grid-template-columns:1.4fr 1fr 1fr 1.2fr;gap:40px}
+footer h4{color:#fff;font-size:1rem;margin-bottom:16px;font-family:Inter,sans-serif}
+footer ul{list-style:none;display:grid;gap:10px}
+footer a:hover{color:#fff}
+footer .logo{color:#fff;margin-bottom:14px}
+.social{display:flex;gap:10px;margin-top:18px}
+.social a{width:38px;height:38px;border-radius:50%;border:1px solid rgba(255,255,255,.2);display:grid;place-items:center}
+.social a:hover{background:var(--accent);border-color:var(--accent)}
+.copy{border-top:1px solid rgba(255,255,255,.1);margin-top:50px;padding:22px 0;text-align:center;font-size:.85rem}
+
+/* WhatsApp flotante */
+.wa{position:fixed;right:20px;bottom:20px;width:58px;height:58px;border-radius:50%;background:#25d366;display:grid;place-items:center;box-shadow:0 8px 24px rgba(0,0,0,.25);z-index:60;transition:.3s}
+.wa:hover{transform:scale(1.08)}
+
+/* Animación al hacer scroll */
+.reveal{opacity:0;transform:translateY(24px);transition:.7s ease}
+.reveal.show{opacity:1;transform:none}
+
+/* Responsive */
+@media (max-width:960px){
+  .hero .container,.about .container,.booking .container{grid-template-columns:1fr}
+  .hero-art{display:none}
+  .grid-3{grid-template-columns:1fr 1fr}
+  .grid-4,.steps{grid-template-columns:1fr 1fr}
+  .stats-grid{grid-template-columns:1fr 1fr}
+  .stat:nth-child(2){border-right:0}
+  .stat:nth-child(-n+2){border-bottom:1px solid var(--line)}
+  .footer-grid{grid-template-columns:1fr 1fr}
+  .menu-btn{display:block}
+  .nav-links{position:absolute;top:76px;left:0;right:0;background:#fff;flex-direction:column;gap:0;padding:8px 16px 20px;border-bottom:1px solid var(--line);display:none}
+  .nav-links.open{display:flex}
+  .nav-links li a{display:block;padding:12px 0;border-bottom:1px solid var(--line)}
+  .nav .btn{display:none}
+}
+@media (max-width:600px){
+  section{padding:64px 0}
+  .grid-3,.steps,.footer-grid{grid-template-columns:1fr}
+  .grid-4{grid-template-columns:1fr 1fr;gap:14px}
+  .doctor .info{padding:14px 8px}
+  .doctor h3{font-size:.95rem}
+  form{grid-template-columns:1fr;padding:24px}
+  .topbar .hide-sm{display:none}
+  .stat{padding:22px 10px}
+  .stat b{font-size:1.8rem}
+}
+</style>
+</head>
+<body>
+
+<!-- Barra superior -->
+<div class="topbar">
+  <div class="container">
+    <div>
+      <span>📞 +591 700 00000</span>
+      <span class="hide-sm">✉️ contacto@clinicavitalis.com</span>
+    </div>
+    <div><span>🕘 Lun – Sáb: 8:00 – 20:00</span></div>
+  </div>
+</div>
+
+<!-- Navegación -->
+<header class="nav">
+  <div class="container">
+    <a href="#inicio" class="logo">
+      <span class="logo-mark">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      </span>
+      Vitalis
+    </a>
+    <ul class="nav-links" id="menu">
+      <li><a href="#inicio">Inicio</a></li>
+      <li><a href="#especialidades">Especialidades</a></li>
+      <li><a href="#nosotros">Nosotros</a></li>
+      <li><a href="#equipo">Equipo médico</a></li>
+      <li><a href="#faq">Preguntas</a></li>
+      <li><a href="#contacto">Contacto</a></li>
+    </ul>
+    <a href="#contacto" class="btn btn-primary">Agendar cita</a>
+    <button class="menu-btn" aria-label="Abrir menú" onclick="document.getElementById('menu').classList.toggle('open')"><span></span><span></span><span></span></button>
+  </div>
+</header>
+
+<!-- Portada -->
+<section class="hero" id="inicio">
+  <div class="container">
+    <div>
+      <span class="eyebrow">Clínica médica integral</span>
+      <h1>Tu salud en manos de <em>expertos</em> que te escuchan</h1>
+      <p>Especialistas certificados, tecnología moderna y un trato humano y cercano. Diagnóstico y tratamiento personalizado para ti y tu familia.</p>
+      <div class="hero-actions">
+        <a href="#contacto" class="btn btn-gold">Reservar una cita →</a>
+        <a href="#especialidades" class="btn btn-outline">Ver especialidades</a>
+      </div>
+    </div>
+    <div class="hero-art">
+      <div class="hero-circle">
+        <svg width="220" height="220" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.85)" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z"/><path d="M3.5 12h4l2-3 3 6 2-3h6" stroke="#c9a45c" stroke-width="1.3"/></svg>
+      </div>
+      <div class="hero-badge b1"><span class="dot">⭐</span><div><strong>4.9 / 5</strong>+1.200 opiniones</div></div>
+      <div class="hero-badge b2"><span class="dot">🩺</span><div><strong>Atención hoy</strong>Citas el mismo día</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- Cifras -->
+<section class="stats">
+  <div class="container">
+    <div class="stats-grid">
+      <div class="stat"><b data-count="15">0</b><span>Años de experiencia</span></div>
+      <div class="stat"><b data-count="25">0</b><span>Especialistas</span></div>
+      <div class="stat"><b data-count="30000">0</b><span>Pacientes atendidos</span></div>
+      <div class="stat"><b data-count="12">0</b><span>Especialidades</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- Especialidades -->
+<section id="especialidades">
+  <div class="container center">
+    <span class="eyebrow">Nuestros servicios</span>
+    <h2 class="section-title">Especialidades médicas</h2>
+    <p class="section-sub">Todo lo que necesitas para cuidar tu salud en un solo lugar, con profesionales de primer nivel.</p>
+    <div class="grid-3" style="text-align:left">
+      <div class="card reveal"><div class="icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0f5c6e" stroke-width="2"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z"/></svg></div><h3>Cardiología</h3><p>Prevención, diagnóstico y tratamiento de enfermedades del corazón. Electrocardiograma y ecocardiografía.</p><a href="#contacto" class="more">Agendar →</a></div>
+      <div class="card reveal"><div class="icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0f5c6e" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg></div><h3>Medicina general</h3><p>Consultas, chequeos preventivos y seguimiento integral para toda la familia.</p><a href="#contacto" class="more">Agendar →</a></div>
+      <div class="card reveal"><div class="icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0f5c6e" stroke-width="2"><circle cx="9" cy="7" r="3"/><circle cx="17" cy="10" r="2"/><path d="M3 20c0-3 3-5 6-5s6 2 6 5M14 20c0-2 1.5-3.5 3-3.5s3 1.5 3 3.5"/></svg></div><h3>Pediatría</h3><p>Control de niño sano, vacunas y atención especializada desde el nacimiento hasta la adolescencia.</p><a href="#contacto" class="more">Agendar →</a></div>
+      <div class="card reveal"><div class="icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0f5c6e" stroke-width="2"><circle cx="12" cy="9" r="5"/><path d="M12 14v7M9 18h6"/></svg></div><h3>Ginecología</h3><p>Salud integral de la mujer, control prenatal, planificación familiar y ecografías.</p><a href="#contacto" class="more">Agendar →</a></div>
+      <div class="card reveal"><div class="icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0f5c6e" stroke-width="2"><path d="M12 3c3 3 6 5 6 10a6 6 0 0 1-12 0c0-5 3-7 6-10z"/></svg></div><h3>Dermatología</h3><p>Cuidado de la piel, tratamiento de acné, manchas y procedimientos estéticos.</p><a href="#contacto" class="more">Agendar →</a></div>
+      <div class="card reveal"><div class="icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0f5c6e" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 14l3-3 3 3 4-5"/></svg></div><h3>Laboratorio e imágenes</h3><p>Análisis clínicos, rayos X y ecografía con resultados rápidos y confiables.</p><a href="#contacto" class="more">Agendar →</a></div>
+    </div>
+  </div>
+</section>
+
+<!-- Nosotros -->
+<section class="about" id="nosotros">
+  <div class="container">
+    <div class="about-visual reveal">
+      <svg width="55%" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.8)" stroke-width=".8" stroke-linecap="round"><path d="M6 3v6a4 4 0 0 0 8 0V3"/><path d="M10 13v3a5 5 0 0 0 10 0v-2"/><circle cx="20" cy="12" r="2"/></svg>
+      <div class="exp"><b>15+</b>años cuidando<br>de tu salud</div>
+    </div>
+    <div class="reveal">
+      <span class="eyebrow">Sobre nosotros</span>
+      <h2 class="section-title">Medicina de calidad con un trato humano</h2>
+      <p class="section-sub">En Clínica Vitalis creemos que cada paciente merece tiempo, atención y un diagnóstico preciso. Combinamos experiencia médica con tecnología actual para ofrecerte la mejor atención.</p>
+      <ul class="checks">
+        <li>Especialistas certificados y en formación continua</li>
+        <li>Equipos de diagnóstico de última generación</li>
+        <li>Citas rápidas y puntualidad en la atención</li>
+        <li>Instalaciones cómodas, limpias y accesibles</li>
+      </ul>
+      <a href="#contacto" class="btn btn-primary">Conócenos en persona</a>
+    </div>
+  </div>
+</section>
+
+<!-- Equipo -->
+<section id="equipo">
+  <div class="container center">
+    <span class="eyebrow">Equipo médico</span>
+    <h2 class="section-title">Profesionales que te acompañan</h2>
+    <p class="section-sub">Un equipo multidisciplinario comprometido con tu bienestar.</p>
+    <div class="grid-4">
+      <!-- Reemplaza las iniciales por fotos: <div class="photo"><img src="foto.jpg" alt=""></div> -->
+      <div class="doctor reveal"><div class="photo" style="background:linear-gradient(150deg,#0f5c6e,#1b8aa3)">AM</div><div class="info"><h3>Dra. Ana Morales</h3><span>Cardiología</span></div></div>
+      <div class="doctor reveal"><div class="photo" style="background:linear-gradient(150deg,#0a4452,#0f5c6e)">CR</div><div class="info"><h3>Dr. Carlos Rojas</h3><span>Medicina general</span></div></div>
+      <div class="doctor reveal"><div class="photo" style="background:linear-gradient(150deg,#b08d45,#c9a45c)">LV</div><div class="info"><h3>Dra. Lucía Vargas</h3><span>Pediatría</span></div></div>
+      <div class="doctor reveal"><div class="photo" style="background:linear-gradient(150deg,#1b8aa3,#0a4452)">JP</div><div class="info"><h3>Dr. Jorge Peña</h3><span>Dermatología</span></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- Proceso -->
+<section style="padding-top:0">
+  <div class="container center">
+    <span class="eyebrow">Así de fácil</span>
+    <h2 class="section-title">¿Cómo agendar tu cita?</h2>
+    <div class="steps" style="text-align:left">
+      <div class="step reveal"><h3>Contáctanos</h3><p>Por WhatsApp, teléfono o el formulario de esta página.</p></div>
+      <div class="step reveal"><h3>Elige horario</h3><p>Te proponemos el día y la hora que mejor te acomoden.</p></div>
+      <div class="step reveal"><h3>Consulta</h3><p>Te atiende el especialista con puntualidad y dedicación.</p></div>
+      <div class="step reveal"><h3>Seguimiento</h3><p>Te acompañamos durante todo tu tratamiento.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- Testimonios -->
+<section class="testimonials">
+  <div class="container center">
+    <span class="eyebrow">Testimonios</span>
+    <h2 class="section-title">Lo que dicen nuestros pacientes</h2>
+    <p class="section-sub">La confianza de nuestros pacientes es nuestro mejor respaldo.</p>
+    <div class="grid-3" style="text-align:left">
+      <div class="quote reveal"><div class="stars">★★★★★</div><p>“Excelente atención desde la recepción hasta la consulta. Me explicaron todo con mucha paciencia.”</p><b>María G.</b><small>Paciente de cardiología</small></div>
+      <div class="quote reveal"><div class="stars">★★★★★</div><p>“Llevo a mis hijos a pediatría desde hace años. Son muy cariñosos y profesionales.”</p><b>Roberto S.</b><small>Paciente de pediatría</small></div>
+      <div class="quote reveal"><div class="stars">★★★★★</div><p>“Conseguí cita el mismo día y los resultados del laboratorio llegaron rapidísimo.”</p><b>Daniela F.</b><small>Paciente de medicina general</small></div>
+    </div>
+  </div>
+</section>
+
+<!-- Preguntas frecuentes -->
+<section id="faq">
+  <div class="container center">
+    <span class="eyebrow">Preguntas frecuentes</span>
+    <h2 class="section-title">Resolvemos tus dudas</h2>
+    <div class="faq-list" style="text-align:left">
+      <details><summary>¿Cómo puedo agendar una cita?</summary><p>Puedes escribirnos por WhatsApp, llamarnos o llenar el formulario de contacto. Te confirmaremos la cita en minutos.</p></details>
+      <details><summary>¿Aceptan seguros médicos?</summary><p>Sí, trabajamos con los principales seguros. Consúltanos por tu aseguradora antes de la cita.</p></details>
+      <details><summary>¿Cuáles son las formas de pago?</summary><p>Aceptamos efectivo, tarjetas de débito y crédito, transferencias y pago por QR.</p></details>
+      <details><summary>¿Atienden emergencias?</summary><p>Contamos con atención de urgencias en nuestro horario. Para emergencias graves, acude al servicio de emergencias más cercano.</p></details>
+      <details><summary>¿Necesito preparación para los análisis de laboratorio?</summary><p>Algunos análisis requieren ayuno. Al agendar te indicaremos la preparación necesaria.</p></details>
+    </div>
+  </div>
+</section>
+
+<!-- Contacto / Citas -->
+<section class="booking" id="contacto">
+  <div class="container">
+    <div class="reveal">
+      <span class="eyebrow">Contacto</span>
+      <h2 class="section-title">Agenda tu cita hoy</h2>
+      <p class="section-sub">Completa el formulario y te responderemos por WhatsApp para confirmar tu cita.</p>
+      <div class="contact-item"><span class="dot">📍</span><div><b>Dirección</b><span>Av. Principal #123, Ciudad</span></div></div>
+      <div class="contact-item"><span class="dot">📞</span><div><b>Teléfono / WhatsApp</b><span>+591 700 00000</span></div></div>
+      <div class="contact-item"><span class="dot">✉️</span><div><b>Correo</b><span>contacto@clinicavitalis.com</span></div></div>
+      <div class="contact-item"><span class="dot">🕘</span><div><b>Horario</b><span>Lun – Vie: 8:00 – 20:00 · Sáb: 8:00 – 14:00</span></div></div>
+    </div>
+    <form id="cita" class="reveal">
+      <div><label for="nombre">Nombre completo</label><input id="nombre" required placeholder="Tu nombre"></div>
+      <div><label for="tel">Teléfono</label><input id="tel" type="tel" required placeholder="+591 ..."></div>
+      <div><label for="esp">Especialidad</label>
+        <select id="esp" required>
+          <option value="">Selecciona…</option>
+          <option>Cardiología</option><option>Medicina general</option><option>Pediatría</option>
+          <option>Ginecología</option><option>Dermatología</option><option>Laboratorio e imágenes</option>
+        </select></div>
+      <div><label for="fecha">Fecha preferida</label><input id="fecha" type="date"></div>
+      <div class="full"><label for="msg">Mensaje (opcional)</label><textarea id="msg" placeholder="Cuéntanos brevemente el motivo de tu consulta"></textarea></div>
+      <div class="full"><button class="btn btn-primary" type="submit" style="width:100%;justify-content:center">Enviar solicitud por WhatsApp</button></div>
+      <p class="form-note full">Tus datos son confidenciales y solo se usan para gestionar tu cita.</p>
+    </form>
+  </div>
+</section>
+
+<!-- Mapa: cambia "q=" por la dirección real de la clínica -->
+<section class="map">
+  <iframe title="Ubicación de la clínica" loading="lazy" src="https://maps.google.com/maps?q=Santa%20Cruz%20de%20la%20Sierra&z=14&output=embed"></iframe>
+</section>
+
+<!-- Pie de página -->
+<footer>
+  <div class="container footer-grid">
+    <div>
+      <div class="logo"><span class="logo-mark"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>Vitalis</div>
+      <p>Atención médica integral con calidad, calidez y tecnología al servicio de tu salud.</p>
+      <div class="social">
+        <a href="#" aria-label="Facebook"><svg width="16" height="16" viewBox="0 0 24 24" fill="#fff"><path d="M14 8h3V4h-3a4 4 0 0 0-4 4v2H8v4h2v8h4v-8h3l1-4h-4V8z"/></svg></a>
+        <a href="#" aria-label="Instagram"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/></svg></a>
+        <a href="#" aria-label="TikTok"><svg width="16" height="16" viewBox="0 0 24 24" fill="#fff"><path d="M16 3c.5 2.5 2 4 4.5 4.2v3.4c-1.7 0-3.2-.5-4.5-1.4V15a6 6 0 1 1-6-6v3.5a2.5 2.5 0 1 0 2.5 2.5V3H16z"/></svg></a>
+      </div>
+    </div>
+    <div><h4>Enlaces</h4><ul><li><a href="#inicio">Inicio</a></li><li><a href="#nosotros">Nosotros</a></li><li><a href="#equipo">Equipo médico</a></li><li><a href="#faq">Preguntas frecuentes</a></li></ul></div>
+    <div><h4>Especialidades</h4><ul><li><a href="#especialidades">Cardiología</a></li><li><a href="#especialidades">Pediatría</a></li><li><a href="#especialidades">Ginecología</a></li><li><a href="#especialidades">Dermatología</a></li></ul></div>
+    <div><h4>Contacto</h4><ul><li>📍 Av. Principal #123, Ciudad</li><li>📞 +591 700 00000</li><li>✉️ contacto@clinicavitalis.com</li><li>🕘 Lun – Sáb: 8:00 – 20:00</li></ul></div>
+  </div>
+  <div class="copy">© <span id="year"></span> Clínica Vitalis. Todos los derechos reservados.</div>
+</footer>
+
+<!-- WhatsApp flotante -->
+<a class="wa" id="wa-float" href="#" target="_blank" rel="noopener" aria-label="Escríbenos por WhatsApp">
+  <svg width="30" height="30" viewBox="0 0 24 24" fill="#fff"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm5.3 14.1c-.2.6-1.3 1.2-1.8 1.2-.5.1-1 .2-3.3-.7-2.8-1.1-4.5-4-4.7-4.2-.1-.2-1.1-1.5-1.1-2.9s.7-2 1-2.3c.2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.9 2.1c.1.2.1.4 0 .5l-.3.5-.4.4c-.1.1-.3.3-.1.6.2.3.8 1.3 1.7 2.1 1.2 1 2.1 1.3 2.4 1.5.3.1.5.1.6-.1l.9-1c.2-.3.4-.2.6-.1l2 1c.3.1.5.2.5.3.1.1.1.6-.1 1.2z"/></svg>
+</a>
+
+<script>
+// PERSONALIZA AQUÍ: número de WhatsApp (código de país + número, sin + ni espacios)
+const WHATSAPP = "59170000000";
+
+document.getElementById("year").textContent = new Date().getFullYear();
+document.getElementById("wa-float").href = `https://wa.me/${WHATSAPP}?text=${encodeURIComponent("Hola, quisiera agendar una cita.")}`;
+
+// Cerrar menú móvil al elegir una opción
+document.querySelectorAll("#menu a").forEach(a => a.addEventListener("click", () => document.getElementById("menu").classList.remove("open")));
+
+// Formulario → WhatsApp
+document.getElementById("cita").addEventListener("submit", e => {
+  e.preventDefault();
+  const v = id => document.getElementById(id).value.trim();
+  const texto = `Hola, quisiera agendar una cita.\n\nNombre: ${v("nombre")}\nTeléfono: ${v("tel")}\nEspecialidad: ${v("esp")}` +
+    (v("fecha") ? `\nFecha preferida: ${v("fecha")}` : "") + (v("msg") ? `\nMotivo: ${v("msg")}` : "");
+  window.open(`https://wa.me/${WHATSAPP}?text=${encodeURIComponent(texto)}`, "_blank");
+});
+
+// Animaciones al hacer scroll y contadores
+const io = new IntersectionObserver(entries => entries.forEach(en => {
+  if (!en.isIntersecting) return;
+  en.target.classList.add("show");
+  io.unobserve(en.target);
+}), { threshold: .15 });
+document.querySelectorAll(".reveal").forEach(el => io.observe(el));
+
+const counter = new IntersectionObserver(entries => entries.forEach(en => {
+  if (!en.isIntersecting) return;
+  const el = en.target, end = +el.dataset.count, t0 = performance.now();
+  const tick = now => {
+    const p = Math.min((now - t0) / 1500, 1);
+    el.textContent = "+" + Math.floor(end * (1 - Math.pow(1 - p, 3))).toLocaleString("es");
+    if (p < 1) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+  counter.unobserve(el);
+}), { threshold: .5 });
+document.querySelectorAll("[data-count]").forEach(el => counter.observe(el));
+</script>
+</body>
+</html>
