@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Estética Dental Juan Carlos Gamarra</title>
 <meta name="description" content="Estética Dental Juan Carlos Gamarra: odontología estética y general. Diseño de sonrisa, blanqueamiento, carillas, ortodoncia e implantes. Agenda tu cita por WhatsApp.">
+<link rel="icon" type="image/png" href="logo-simbolo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -13,10 +14,10 @@
    Colores de la marca: celeste, plomo, negro y blanco
    ============================================================ */
 :root{
-  --celeste:#8ecae6;
-  --celeste-soft:#eaf5fa;
-  --celeste-dark:#4fa3c7;
-  --plomo:#6b7075;
+  --celeste:#4a9cf6;      /* celeste del logo */
+  --celeste-soft:#eaf3fe;
+  --celeste-dark:#2f86e6;
+  --plomo:#7b7c80;        /* plomo del logo */
   --plomo-light:#d9dcdf;
   --plomo-bg:#f4f5f6;
   --negro:#111315;
@@ -43,7 +44,7 @@ section{padding:96px 0}
 .btn-dark{background:var(--negro);color:#fff}
 .btn-dark:hover{background:var(--negro-2);transform:translateY(-2px)}
 .btn-celeste{background:var(--celeste);color:var(--negro)}
-.btn-celeste:hover{background:#a6d6ec;transform:translateY(-2px)}
+.btn-celeste:hover{background:#6aaff8;transform:translateY(-2px)}
 .btn-line{border-color:rgba(255,255,255,.5);color:#fff}
 .btn-line:hover{background:#fff;color:var(--negro)}
 .btn-line-dark{border-color:var(--negro);color:var(--negro)}
@@ -59,10 +60,10 @@ section{padding:96px 0}
 header.nav{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.96);backdrop-filter:blur(8px);border-bottom:1px solid var(--plomo-light)}
 .nav .container{display:flex;align-items:center;justify-content:space-between;height:78px;gap:20px}
 .logo{display:flex;align-items:center;gap:12px}
-.logo-mark{width:44px;height:44px;border-radius:50%;border:1.5px solid var(--negro);display:grid;place-items:center;flex-shrink:0}
+.logo img{height:48px;width:auto;flex-shrink:0}
 .logo-text{line-height:1.05}
-.logo-text b{display:block;font-family:"Cormorant Garamond",serif;font-size:1.35rem;font-weight:700;letter-spacing:.02em}
-.logo-text small{font-size:.66rem;letter-spacing:.28em;text-transform:uppercase;color:var(--plomo)}
+.logo-text b{display:block;font-size:1.02rem;font-weight:600;font-style:italic;color:var(--plomo)}
+.logo-text small{display:block;font-size:.7rem;letter-spacing:.22em;text-transform:uppercase;color:var(--celeste-dark);font-weight:600;margin-top:3px}
 .nav-links{display:flex;gap:30px;list-style:none;font-size:.92rem;font-weight:500}
 .nav-links a{position:relative;padding:4px 0}
 .nav-links a::after{content:"";position:absolute;left:0;bottom:-2px;width:0;height:1.5px;background:var(--celeste-dark);transition:.3s}
@@ -72,7 +73,7 @@ header.nav{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.96);bac
 
 /* Portada */
 .hero{padding:0;background:var(--negro);color:#fff;position:relative;overflow:hidden}
-.hero::before{content:"";position:absolute;right:-180px;top:-180px;width:620px;height:620px;border-radius:50%;background:radial-gradient(circle,rgba(142,202,230,.28),transparent 65%)}
+.hero::before{content:"";position:absolute;right:-180px;top:-180px;width:620px;height:620px;border-radius:50%;background:radial-gradient(circle,rgba(74,156,246,.28),transparent 65%)}
 .hero .container{position:relative;display:grid;grid-template-columns:1.15fr .85fr;gap:50px;align-items:center;min-height:620px;padding:80px 0}
 .hero .eyebrow{color:var(--celeste)}
 .hero h1{color:#fff;font-size:clamp(2.6rem,6vw,4.4rem);font-weight:500;margin-bottom:22px}
@@ -81,7 +82,9 @@ header.nav{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.96);bac
 .hero-actions{display:flex;gap:14px;flex-wrap:wrap}
 .hero-art{display:grid;place-items:center}
 .hero-ring{position:relative;width:min(400px,100%);aspect-ratio:1;border-radius:50%;border:1px solid rgba(255,255,255,.14);display:grid;place-items:center}
-.hero-ring::before{content:"";position:absolute;inset:34px;border-radius:50%;border:1px dashed rgba(142,202,230,.35)}
+.hero-ring::before{content:"";position:absolute;inset:34px;border-radius:50%;border:1px dashed rgba(74,156,246,.35)}
+.hero-disc{width:66%;aspect-ratio:1;border-radius:50%;background:#fff;display:grid;place-items:center;box-shadow:0 0 0 12px rgba(255,255,255,.06),0 20px 60px rgba(0,0,0,.4)}
+.hero-disc img{width:62%;height:auto}
 .hero-card{position:absolute;bottom:4%;left:-6%;background:#fff;color:var(--negro);border-radius:var(--radius);padding:14px 18px;box-shadow:var(--shadow);font-size:.84rem;display:flex;gap:12px;align-items:center}
 .hero-card b{display:block;font-size:.95rem}
 .hero-card .ic{width:38px;height:38px;border-radius:50%;background:var(--celeste-soft);display:grid;place-items:center}
@@ -110,13 +113,14 @@ header.nav{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.96);bac
 /* Sobre nosotros */
 .about{background:var(--plomo-bg)}
 .about .container{display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:center}
-.about-visual{position:relative;border-radius:var(--radius);background:linear-gradient(160deg,var(--negro-2),var(--negro));aspect-ratio:4/5;display:grid;place-items:center;overflow:hidden}
-.about-visual::before{content:"";position:absolute;width:70%;aspect-ratio:1;border-radius:50%;background:radial-gradient(circle,rgba(142,202,230,.25),transparent 70%)}
-.about-visual .tag{position:absolute;bottom:24px;left:24px;right:24px;background:rgba(255,255,255,.95);border-radius:12px;padding:18px 20px;font-size:.9rem;color:var(--plomo)}
+.about-visual{position:relative;border-radius:var(--radius);background:#fff;border:1px solid var(--plomo-light);aspect-ratio:4/5;display:grid;place-items:center;overflow:hidden;box-shadow:var(--shadow)}
+.about-visual img{width:78%;height:auto;margin-top:-60px}
+.about-visual .tag{position:absolute;bottom:24px;left:24px;right:24px;background:var(--negro);border-radius:12px;padding:18px 20px;font-size:.9rem;color:#b9bdc1}
+.about-visual .tag b{color:#fff !important}
 .about-visual .tag b{display:block;font-family:"Cormorant Garamond",serif;font-size:1.4rem;color:var(--negro)}
 .checks{list-style:none;margin:26px 0 34px;display:grid;gap:14px}
 .checks li{display:flex;gap:12px;align-items:flex-start}
-.checks li::before{content:"";flex-shrink:0;width:22px;height:22px;margin-top:2px;border-radius:50%;background:var(--negro) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238ecae6' stroke-width='3'%3E%3Cpath d='M5 12l5 5L20 7'/%3E%3C/svg%3E") center/12px no-repeat}
+.checks li::before{content:"";flex-shrink:0;width:22px;height:22px;margin-top:2px;border-radius:50%;background:var(--negro) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%234a9cf6' stroke-width='3'%3E%3Cpath d='M5 12l5 5L20 7'/%3E%3C/svg%3E") center/12px no-repeat}
 
 /* Equipo */
 .team{display:grid;grid-template-columns:repeat(2,minmax(0,340px));justify-content:center;gap:28px;margin-top:54px}
@@ -137,7 +141,7 @@ header.nav{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.96);bac
 
 /* Banner */
 .cta{background:var(--negro);color:#fff;padding:80px 0;position:relative;overflow:hidden}
-.cta::before{content:"";position:absolute;left:-160px;bottom:-200px;width:520px;height:520px;border-radius:50%;background:radial-gradient(circle,rgba(142,202,230,.22),transparent 65%)}
+.cta::before{content:"";position:absolute;left:-160px;bottom:-200px;width:520px;height:520px;border-radius:50%;background:radial-gradient(circle,rgba(74,156,246,.22),transparent 65%)}
 .cta .container{position:relative;display:flex;justify-content:space-between;align-items:center;gap:30px;flex-wrap:wrap}
 .cta h2{color:#fff;font-size:clamp(1.9rem,4vw,2.8rem);font-weight:500;max-width:620px}
 .cta h2 em{color:var(--celeste)}
@@ -179,9 +183,8 @@ footer h4{color:#fff;font-size:.8rem;letter-spacing:.2em;text-transform:uppercas
 footer ul{list-style:none;display:grid;gap:10px}
 footer a:hover{color:var(--celeste)}
 footer .logo{margin-bottom:16px}
-footer .logo-mark{border-color:var(--celeste)}
-footer .logo-text b{color:#fff}
-footer .logo-text small{color:#9ba0a5}
+footer .logo-card{display:inline-block;background:#fff;border-radius:var(--radius);padding:16px 20px;margin-bottom:18px}
+footer .logo-card img{width:190px;height:auto;display:block}
 .copy{border-top:1px solid rgba(255,255,255,.08);margin-top:54px;padding:22px 0;text-align:center;font-size:.82rem}
 
 /* WhatsApp flotante */
@@ -207,6 +210,7 @@ footer .logo-text small{color:#9ba0a5}
   .nav .btn{display:none}
 }
 @media (max-width:600px){
+  .logo img{height:40px}
   section{padding:66px 0}
   .grid-3,.steps,.footer-grid{grid-template-columns:1fr}
   .perks-grid{grid-template-columns:1fr}
@@ -247,10 +251,8 @@ footer .logo-text small{color:#9ba0a5}
 <header class="nav">
   <div class="container">
     <a href="#inicio" class="logo">
-      <span class="logo-mark">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3c-2.5 0-4 2-4 4.5 0 2 .8 3.4 1.5 5 .8 2 .9 4 1.3 6 .3 1.6.8 2.5 1.7 2.5 1.6 0 1.6-3.5 2.2-5.5.4-1.3 1.2-1.5 2.3-1.5s1.9.2 2.3 1.5c.6 2 .6 5.5 2.2 5.5.9 0 1.4-.9 1.7-2.5.4-2 .5-4 1.3-6 .7-1.6 1.5-3 1.5-5C21 5 19.5 3 17 3c-2 0-3 1-5 1S9 3 7 3z"/></svg>
-      </span>
-      <span class="logo-text"><b>Juan Carlos Gamarra</b><small>Estética Dental</small></span>
+      <img src="logo-simbolo.png" alt="Logo Estética Dental Dr. Juan Carlos Gamarra" width="56" height="48">
+      <span class="logo-text"><small>Estética Dental</small><b>Dr. Juan Carlos Gamarra</b></span>
     </a>
     <ul class="nav-links" id="menu">
       <li><a href="#inicio">Inicio</a></li>
@@ -279,7 +281,7 @@ footer .logo-text small{color:#9ba0a5}
     </div>
     <div class="hero-art">
       <div class="hero-ring">
-        <svg width="200" height="200" viewBox="0 0 24 24" fill="none" stroke="#8ecae6" stroke-width=".55" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3c-2.5 0-4 2-4 4.5 0 2 .8 3.4 1.5 5 .8 2 .9 4 1.3 6 .3 1.6.8 2.5 1.7 2.5 1.6 0 1.6-3.5 2.2-5.5.4-1.3 1.2-1.5 2.3-1.5s1.9.2 2.3 1.5c.6 2 .6 5.5 2.2 5.5.9 0 1.4-.9 1.7-2.5.4-2 .5-4 1.3-6 .7-1.6 1.5-3 1.5-5C21 5 19.5 3 17 3c-2 0-3 1-5 1S9 3 7 3z"/><path d="M15.5 6.5l.6-1.3 1.3-.6-1.3-.6-.6-1.3" stroke="#fff"/></svg>
+        <div class="hero-disc"><img src="logo-simbolo.png" alt=""></div>
         <div class="hero-card"><span class="ic">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111315" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>
           <div><b>Citas por WhatsApp</b>Respuesta rápida</div></div>
@@ -321,7 +323,7 @@ footer .logo-text small{color:#9ba0a5}
 <section class="about" id="nosotros">
   <div class="container">
     <div class="about-visual reveal">
-      <svg width="46%" viewBox="0 0 24 24" fill="none" stroke="#8ecae6" stroke-width=".5" stroke-linecap="round" stroke-linejoin="round" style="position:relative"><path d="M7 3c-2.5 0-4 2-4 4.5 0 2 .8 3.4 1.5 5 .8 2 .9 4 1.3 6 .3 1.6.8 2.5 1.7 2.5 1.6 0 1.6-3.5 2.2-5.5.4-1.3 1.2-1.5 2.3-1.5s1.9.2 2.3 1.5c.6 2 .6 5.5 2.2 5.5.9 0 1.4-.9 1.7-2.5.4-2 .5-4 1.3-6 .7-1.6 1.5-3 1.5-5C21 5 19.5 3 17 3c-2 0-3 1-5 1S9 3 7 3z"/></svg>
+      <img src="logo.png" alt="Estética Dental Dr. Juan Carlos Gamarra">
       <div class="tag"><b>Estética Dental JCG</b>Tu sonrisa, nuestra especialidad</div>
     </div>
     <div class="reveal">
@@ -428,10 +430,7 @@ footer .logo-text small{color:#9ba0a5}
 <footer>
   <div class="container footer-grid">
     <div>
-      <div class="logo">
-        <span class="logo-mark"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#8ecae6" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3c-2.5 0-4 2-4 4.5 0 2 .8 3.4 1.5 5 .8 2 .9 4 1.3 6 .3 1.6.8 2.5 1.7 2.5 1.6 0 1.6-3.5 2.2-5.5.4-1.3 1.2-1.5 2.3-1.5s1.9.2 2.3 1.5c.6 2 .6 5.5 2.2 5.5.9 0 1.4-.9 1.7-2.5.4-2 .5-4 1.3-6 .7-1.6 1.5-3 1.5-5C21 5 19.5 3 17 3c-2 0-3 1-5 1S9 3 7 3z"/></svg></span>
-        <span class="logo-text"><b>Juan Carlos Gamarra</b><small>Estética Dental</small></span>
-      </div>
+      <div class="logo-card"><img src="logo.png" alt="Estética Dental Dr. Juan Carlos Gamarra"></div>
       <p>Odontología estética y general con atención personalizada.</p>
     </div>
     <div><h4>Enlaces</h4><ul><li><a href="#inicio">Inicio</a></li><li><a href="#nosotros">Nosotros</a></li><li><a href="#equipo">Odontólogos</a></li><li><a href="#faq">Preguntas frecuentes</a></li></ul></div>
